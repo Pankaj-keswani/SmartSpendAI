@@ -77,96 +77,101 @@ def index():
 @app.route("/analyze", methods=["POST"])
 def analyze():
 
-    file = request.files["file"]
+    try:
 
-    tmp = tempfile.mkdtemp()
-    path = os.path.join(tmp, "stmt.pdf")
-    file.save(path)
+        file = request.files["file"]
 
-    # ---------- SAFE PDF PARSE (NO CAMEL0T) ----------
-    rows = []
+        tmp = tempfile.mkdtemp()
+        path = os.path.join(tmp, "stmt.pdf")
+        file.save(path)
 
-    with pdfplumber.open(path) as pdf:
-        for page in pdf.pages:
-            table = page.extract_table()
-            if table:
-                rows.extend(table)
+        # ---------- SAFE PDF PARSE (NO CAMEL0T) ----------
+        rows = []
 
-    if not rows:
-        return "No tables detected in PDF"
+        with pdfplumber.open(path) as pdf:
+            for page in pdf.pages:
+                table = page.extract_table()
+                if table:
+                    rows.extend(table)
 
-    df = pd.DataFrame(rows)
+        if not rows:
+            return "No tables detected in PDF. Try downloading Detailed Statement format."
 
-    # ---------- SAFE HEADER ----------
-    df.columns = df.iloc[0]
-    df = df.iloc[1:].copy()
-    df.reset_index(drop=True, inplace=True)
+        df = pd.DataFrame(rows)
 
-    # ---------- SAFE COLUMN DETECT ----------
-    def find(col, words):
-        for c in col:
-            text = str(c).lower()
-            for w in words:
-                if w in text:
-                    return c
-        return None
+        # ---------- SAFE HEADER ----------
+        df.columns = df.iloc[0]
+        df = df.iloc[1:].copy()
+        df.reset_index(drop=True, inplace=True)
 
-    date_col = find(df.columns, ["date","txn","posting","transaction"])
-    narr_col = find(df.columns, ["narr","details","description","particular","remarks","info"])
-    debit_col = find(df.columns, ["debit","withdraw","dr","debit amt","outflow"])
-    credit_col = find(df.columns, ["credit","deposit","cr","credit amt","inflow"])
+        # ---------- SAFE COLUMN DETECT ----------
+        def find(col, words):
+            for c in col:
+                text = str(c).lower()
+                for w in words:
+                    if w in text:
+                        return c
+            return None
 
-    if not narr_col:
-        narr_col = df.columns[1]
+        date_col = find(df.columns, ["date","txn","posting","transaction"])
+        narr_col = find(df.columns, ["narr","details","description","particular","remarks","info"])
+        debit_col = find(df.columns, ["debit","withdraw","dr","debit amt","outflow"])
+        credit_col = find(df.columns, ["credit","deposit","cr","credit amt","inflow"])
 
-    # ---------- AMOUNT ----------
-    if debit_col and credit_col:
-        df["Amount"] = df[debit_col].fillna(df[credit_col])
-    elif debit_col:
-        df["Amount"] = df[debit_col]
-    elif credit_col:
-        df["Amount"] = df[credit_col]
-    else:
-        df["Amount"] = df.iloc[:,-1]
+        if not narr_col:
+            narr_col = df.columns[1]
 
-    df["Amount"] = (
-        df["Amount"]
-        .astype(str)
-        .str.replace(",", "", regex=False)
-        .replace("-", "0")
-    )
+        # ---------- AMOUNT ----------
+        if debit_col and credit_col:
+            df["Amount"] = df[debit_col].fillna(df[credit_col])
+        elif debit_col:
+            df["Amount"] = df[debit_col]
+        elif credit_col:
+            df["Amount"] = df[credit_col]
+        else:
+            df["Amount"] = df.iloc[:,-1]
 
-    df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(0)
+        df["Amount"] = (
+            df["Amount"]
+            .astype(str)
+            .str.replace(",", "", regex=False)
+            .replace("-", "0")
+        )
 
-    df = df[df["Amount"] > 0]
+        df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(0)
 
-    df = df[~df[narr_col].str.upper().str.contains("TOTAL|INTEREST", na=False)]
+        df = df[df["Amount"] > 0]
 
-    df["AI Category"] = df[narr_col].apply(detect_category)
+        df = df[~df[narr_col].str.upper().str.contains("TOTAL|INTEREST", na=False)]
 
-    total_spend = round(df["Amount"].sum(), 2)
-    total_transactions = len(df)
+        df["AI Category"] = df[narr_col].apply(detect_category)
 
-    cat_summary = (
-        df.groupby("AI Category")["Amount"]
-        .sum()
-        .reset_index()
-        .values
-    )
+        total_spend = round(df["Amount"].sum(), 2)
+        total_transactions = len(df)
 
-    rows = df.rename(columns={
-        date_col if date_col else narr_col: "Transaction Date",
-        narr_col: "Description/Narration"
-    })
+        cat_summary = (
+            df.groupby("AI Category")["Amount"]
+            .sum()
+            .reset_index()
+            .values
+        )
 
-    return render_template(
-        "dashboard.html",
-        rows=rows.to_dict("records"),
-        total_spend=total_spend,
-        total_transactions=total_transactions,
-        top_category=df.groupby("AI Category")["Amount"].sum().idxmax(),
-        category_summary=cat_summary
-    )
+        rows = df.rename(columns={
+            date_col if date_col else narr_col: "Transaction Date",
+            narr_col: "Description/Narration"
+        })
+
+        return render_template(
+            "dashboard.html",
+            rows=rows.to_dict("records"),
+            total_spend=total_spend,
+            total_transactions=total_transactions,
+            top_category=df.groupby("AI Category")["Amount"].sum().idxmax(),
+            category_summary=cat_summary
+        )
+
+    except Exception as e:
+        return f"❌ Error processing PDF:<br><br>{str(e)}"
 
 
 if __name__ == "__main__":
