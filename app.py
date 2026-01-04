@@ -26,7 +26,7 @@ def detect_category(text):
     raw = raw.replace(" ", "")
 
     replace_map = {
-        "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt"],
+        "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt", "meesho", "me eesho", "m essho", "m e e s h o"],
         "swiggy":["swiggy","swiggylimited"],
         "myntra":["myntra"],
         "jiomart":["jiomart"],
