@@ -152,7 +152,3 @@ if __name__ == "__main__":
         port=port,
         debug=False
     )
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
