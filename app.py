@@ -3,7 +3,7 @@ import re
 import tempfile
 from flask import Flask, render_template, request
 import pandas as pd
-import camelot
+import pdfplumber   # 👈 camelot ki jagah ye
 
 app = Flask(__name__)
 
@@ -83,13 +83,19 @@ def analyze():
     path = os.path.join(tmp, "stmt.pdf")
     file.save(path)
 
-    # ---------- SAFE PDF PARSE ----------
-    tables = camelot.read_pdf(path, pages="all", flavor="lattice")
+    # ---------- SAFE PDF PARSE (NO CAMEL0T) ----------
+    rows = []
 
-    if len(tables) == 0:
+    with pdfplumber.open(path) as pdf:
+        for page in pdf.pages:
+            table = page.extract_table()
+            if table:
+                rows.extend(table)
+
+    if not rows:
         return "No tables detected in PDF"
 
-    df = pd.concat([t.df for t in tables], ignore_index=True)
+    df = pd.DataFrame(rows)
 
     # ---------- SAFE HEADER ----------
     df.columns = df.iloc[0]
