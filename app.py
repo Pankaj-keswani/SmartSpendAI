@@ -103,22 +103,31 @@ def analyze():
     df.reset_index(drop=True, inplace=True)
 
     # ---------- SAFE COLUMN DETECT ----------
-    def find(col, word):
+    def find(col, words):
         for c in col:
-            if word in str(c).lower():
-                return c
+            text = str(c).lower()
+            for w in words:
+                if w in text:
+                    return c
         return None
 
-    date_col = find(df.columns, "date")
-    narr_col = find(df.columns, "narr")
-    debit_col = find(df.columns, "debit")
-    credit_col = find(df.columns, "credit")
+    date_col = find(df.columns, ["date","txn","posting","transaction"])
+    narr_col = find(df.columns, ["narr","details","description","particular","remarks","info"])
+    debit_col = find(df.columns, ["debit","withdraw","dr","debit amt","outflow"])
+    credit_col = find(df.columns, ["credit","deposit","cr","credit amt","inflow"])
 
-    if not all([date_col, narr_col, debit_col, credit_col]):
-        return "Statement format not supported"
+    if not narr_col:
+        narr_col = df.columns[1]
 
     # ---------- AMOUNT ----------
-    df["Amount"] = df[debit_col].fillna(df[credit_col])
+    if debit_col and credit_col:
+        df["Amount"] = df[debit_col].fillna(df[credit_col])
+    elif debit_col:
+        df["Amount"] = df[debit_col]
+    elif credit_col:
+        df["Amount"] = df[credit_col]
+    else:
+        df["Amount"] = df.iloc[:,-1]
 
     df["Amount"] = (
         df["Amount"]
@@ -146,7 +155,7 @@ def analyze():
     )
 
     rows = df.rename(columns={
-        date_col: "Transaction Date",
+        date_col if date_col else narr_col: "Transaction Date",
         narr_col: "Description/Narration"
     })
 
