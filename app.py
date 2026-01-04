@@ -142,19 +142,27 @@ def analyze():
 
         df = df[df["Amount"] > 0]
 
+        # remove summary rows
         df = df[~df[narr_col].str.upper().str.contains("TOTAL|INTEREST", na=False)]
+
+        # if still empty → safe return
+        if len(df)==0:
+            return "No valid transactions detected in this statement."
 
         df["AI Category"] = df[narr_col].apply(detect_category)
 
         total_spend = round(df["Amount"].sum(), 2)
         total_transactions = len(df)
 
-        cat_summary = (
-            df.groupby("AI Category")["Amount"]
-            .sum()
-            .reset_index()
-            .values
-        )
+        # ---------- SAFE GROUP ----------
+        cat_group = df.groupby("AI Category")["Amount"].sum()
+
+        if len(cat_group)==0:
+            top_category = "Not Available"
+            cat_summary = []
+        else:
+            top_category = cat_group.idxmax()
+            cat_summary = cat_group.reset_index().values
 
         rows = df.rename(columns={
             date_col if date_col else narr_col: "Transaction Date",
@@ -166,7 +174,7 @@ def analyze():
             rows=rows.to_dict("records"),
             total_spend=total_spend,
             total_transactions=total_transactions,
-            top_category=df.groupby("AI Category")["Amount"].sum().idxmax(),
+            top_category=top_category,
             category_summary=cat_summary
         )
 
