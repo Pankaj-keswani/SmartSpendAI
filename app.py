@@ -4,7 +4,6 @@ import tempfile
 from flask import Flask, render_template, request
 import pandas as pd
 import camelot
-
 app = Flask(__name__)
 
 # ----------------- Bank Noise Remove ----------------
@@ -143,6 +142,14 @@ def analyze():
         total_transactions=total_transactions,
         top_category=df.groupby("AI Category")["Amount"].sum().idxmax(),
         category_summary=cat_summary
+    )
+    
+
+if __name__ == "__main__":
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        debug=False
     )
 
 
