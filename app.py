@@ -117,7 +117,10 @@ def analyze():
                 except:
                     continue
 
-                desc = line[:40]
+                # ⭐ PAYTM ALWAYS EXPENSE → POSITIVE VALUE
+                amt = abs(amt)
+
+                desc = line[:60]
                 data.append([desc, amt])
 
             if len(data)==0:
@@ -145,7 +148,7 @@ def analyze():
                 except:
                     continue
 
-                data.append([L[:35], amt])
+                data.append([L[:50], amt])
 
             if len(data)==0:
                 return None
@@ -213,7 +216,7 @@ def analyze():
 
         df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(0)
 
-        df = df[df["Amount"] > 0]
+        df = df[df["Amount"] != 0]   # ⭐ ZERO ONLY REMOVE
 
         # remove summary rows
         df = df[~df[narr_col].astype(str).str.upper().str.contains("TOTAL|INTEREST", na=False)]
