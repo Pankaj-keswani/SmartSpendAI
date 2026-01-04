@@ -4,6 +4,7 @@ import tempfile
 from flask import Flask, render_template, request
 import pandas as pd
 import camelot
+
 app = Flask(__name__)
 
 # ----------------- Bank Noise Remove ----------------
@@ -24,19 +25,18 @@ def detect_category(text):
     raw = re.sub(r"[^a-zA-Z ]", "", raw)
     raw = raw.replace(" ", "")
 
-    # ---- Normalise Brands ----
     replace_map = {
         "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt"],
         "swiggy":["swiggy","swiggylimited"],
         "myntra":["myntra"],
         "jiomart":["jiomart"],
         "ajio":["ajio"],
-        "bigbasket":["bigbasket", "DE ALSHARE", "deal share", "dealshare"],
+        "bigbasket":["bigbasket","dealshare","deal share","de alshare"],
         "medical":["medical","pharmacy","chemist"],
         "kirana":["kirana","mart","store"],
         "uber":["uber"],
         "ola":["ola"],
-        "zomato":["zomato", "eternal", "et ernal", "b linkit"],
+        "zomato":["zomato","eternal","blinkit","b linkit"],
         "recharge":["recharge","billdesk"]
     }
 
@@ -45,7 +45,6 @@ def detect_category(text):
             if w in raw:
                 raw = key
 
-    # ---------- Rules ----------
     if "swiggy" in raw or "zomato" in raw:
         return "Food"
 
@@ -64,7 +63,7 @@ def detect_category(text):
     if "recharge" in raw or "bill" in raw:
         return "Bills"
 
-    if "upi" in text.lower():
+    if "upi" in str(text).lower():
         return "Money Transfer"
 
     return "Others"
@@ -84,42 +83,53 @@ def analyze():
     path = os.path.join(tmp, "stmt.pdf")
     file.save(path)
 
+    # ---------- SAFE PDF PARSE ----------
     tables = camelot.read_pdf(path, pages="all", flavor="lattice")
+
+    if len(tables) == 0:
+        return "No tables detected in PDF"
+
     df = pd.concat([t.df for t in tables], ignore_index=True)
 
+    # ---------- SAFE HEADER ----------
     df.columns = df.iloc[0]
-    df = df.iloc[1:]
+    df = df.iloc[1:].copy()
     df.reset_index(drop=True, inplace=True)
 
-    # Detect date + narration + debit + credit columns
-    date_col = [c for c in df.columns if "date" in str(c).lower()][0]
-    narr_col = [c for c in df.columns if "narr" in str(c).lower()][0]
-    debit_col = [c for c in df.columns if "debit" in str(c).lower()][0]
-    credit_col = [c for c in df.columns if "credit" in str(c).lower()][0]
+    # ---------- SAFE COLUMN DETECT ----------
+    def find(col, word):
+        for c in col:
+            if word in str(c).lower():
+                return c
+        return None
 
-    # Build Amount
+    date_col = find(df.columns, "date")
+    narr_col = find(df.columns, "narr")
+    debit_col = find(df.columns, "debit")
+    credit_col = find(df.columns, "credit")
+
+    if not all([date_col, narr_col, debit_col, credit_col]):
+        return "Statement format not supported"
+
+    # ---------- AMOUNT ----------
     df["Amount"] = df[debit_col].fillna(df[credit_col])
 
-    # Handle "-" safely
     df["Amount"] = (
-    df["Amount"]
-    .astype(str)
-    .str.replace(",", "", regex=False)
-    .replace("-", "0")
+        df["Amount"]
+        .astype(str)
+        .str.replace(",", "", regex=False)
+        .replace("-", "0")
     )
+
     df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(0)
 
-    # Remove zero-value rows
     df = df[df["Amount"] > 0]
 
-    # Remove "TOTAL / INTEREST"
     df = df[~df[narr_col].str.upper().str.contains("TOTAL|INTEREST", na=False)]
 
-    # Detect category
     df["AI Category"] = df[narr_col].apply(detect_category)
 
-    # -------- Summary values --------
-    total_spend = round(df["Amount"].sum(),2)
+    total_spend = round(df["Amount"].sum(), 2)
     total_transactions = len(df)
 
     cat_summary = (
@@ -129,7 +139,6 @@ def analyze():
         .values
     )
 
-    # send date + desc + amount + category
     rows = df.rename(columns={
         date_col: "Transaction Date",
         narr_col: "Description/Narration"
@@ -143,7 +152,7 @@ def analyze():
         top_category=df.groupby("AI Category")["Amount"].sum().idxmax(),
         category_summary=cat_summary
     )
-    
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
@@ -152,4 +161,3 @@ if __name__ == "__main__":
         port=port,
         debug=False
     )
-
