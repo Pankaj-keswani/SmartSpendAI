@@ -94,42 +94,115 @@ def analyze():
                 if table:
                     rows.extend(table)
 
+        # ==========  FALLBACK EXTRACTORS ADDED HERE ==========
+        def try_paytm_style():
+            text_rows = []
+            with pdfplumber.open(path) as pdf:
+                for page in pdf.pages:
+                    lines = (page.extract_text() or "").split("\n")
+                    for L in lines:
+                        if "Rs." in L or "₹" in L:
+                            text_rows.append(L)
+
+            data = []
+            for line in text_rows:
+                amt = re.findall(r"[-]?\s?(?:Rs\.?|₹)\s?[\d,]+", line)
+                if not amt:
+                    continue
+
+                amt = amt[-1].replace("Rs.","").replace("₹","").replace(",","").strip()
+
+                try:
+                    amt = float(amt)
+                except:
+                    continue
+
+                desc = line[:40]
+                data.append([desc, amt])
+
+            if len(data)==0:
+                return None
+
+            return pd.DataFrame(data, columns=["Narration","Amount"])
+
+
+        def try_bank_line_mode():
+            text_rows = []
+            with pdfplumber.open(path) as pdf:
+                for page in pdf.pages:
+                    text_rows.extend((page.extract_text() or "").split("\n"))
+
+            data=[]
+            for L in text_rows:
+                amt = re.findall(r"[\d,]+\.\d\d", L)
+                if not amt:
+                    continue
+
+                amt = amt[-1].replace(",","")
+
+                try:
+                    amt = float(amt)
+                except:
+                    continue
+
+                data.append([L[:35], amt])
+
+            if len(data)==0:
+                return None
+
+            return pd.DataFrame(data, columns=["Narration","Amount"])
+        # =====================================================
+
+
         if not rows:
-            return "No tables detected in PDF. Try downloading Detailed Statement format."
+            # FIRST TRY PAYTM
+            df = try_paytm_style()
 
-        df = pd.DataFrame(rows)
+            # THEN TRY SBI / HDFC / ICICI etc.
+            if df is None:
+                df = try_bank_line_mode()
 
-        # ---------- SAFE HEADER ----------
-        df.columns = df.iloc[0]
-        df = df.iloc[1:].copy()
-        df.reset_index(drop=True, inplace=True)
+            if df is None:
+                return "No tables detected in PDF. Try downloading Detailed Statement format."
 
-        # ---------- SAFE COLUMN DETECT ----------
-        def find(col, words):
-            for c in col:
-                text = str(c).lower()
-                for w in words:
-                    if w in text:
-                        return c
-            return None
+            narr_col = "Narration"
+            date_col = None
 
-        date_col = find(df.columns, ["date","txn","posting","transaction"])
-        narr_col = find(df.columns, ["narr","details","description","particular","remarks","info"])
-        debit_col = find(df.columns, ["debit","withdraw","dr","debit amt","outflow"])
-        credit_col = find(df.columns, ["credit","deposit","cr","credit amt","inflow"])
-
-        if not narr_col:
-            narr_col = df.columns[1]
-
-        # ---------- AMOUNT ----------
-        if debit_col and credit_col:
-            df["Amount"] = df[debit_col].fillna(df[credit_col])
-        elif debit_col:
-            df["Amount"] = df[debit_col]
-        elif credit_col:
-            df["Amount"] = df[credit_col]
         else:
-            df["Amount"] = df.iloc[:,-1]
+
+            df = pd.DataFrame(rows)
+
+            # ---------- SAFE HEADER ----------
+            df.columns = df.iloc[0]
+            df = df.iloc[1:].copy()
+            df.reset_index(drop=True, inplace=True)
+
+            # ---------- SAFE COLUMN DETECT ----------
+            def find(col, words):
+                for c in col:
+                    text = str(c).lower()
+                    for w in words:
+                        if w in text:
+                            return c
+                return None
+
+            date_col = find(df.columns, ["date","txn","posting","transaction"])
+            narr_col = find(df.columns, ["narr","details","description","particular","remarks","info"])
+            debit_col = find(df.columns, ["debit","withdraw","dr","debit amt","outflow"])
+            credit_col = find(df.columns, ["credit","deposit","cr","credit amt","inflow"])
+
+            if not narr_col:
+                narr_col = df.columns[1]
+
+            # ---------- AMOUNT ----------
+            if debit_col and credit_col:
+                df["Amount"] = df[debit_col].fillna(df[credit_col])
+            elif debit_col:
+                df["Amount"] = df[debit_col]
+            elif credit_col:
+                df["Amount"] = df[credit_col]
+            else:
+                df["Amount"] = df.iloc[:,-1]
 
         df["Amount"] = (
             df["Amount"]
@@ -143,7 +216,7 @@ def analyze():
         df = df[df["Amount"] > 0]
 
         # remove summary rows
-        df = df[~df[narr_col].str.upper().str.contains("TOTAL|INTEREST", na=False)]
+        df = df[~df[narr_col].astype(str).str.upper().str.contains("TOTAL|INTEREST", na=False)]
 
         # if still empty → safe return
         if len(df)==0:
