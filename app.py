@@ -109,7 +109,6 @@ def analyze():
 
             for L in lines:
 
-                # pick lines like: 29 Dec  Google Play Recharge ...
                 if re.search(r"\d{1,2}\s\w{3}", L):
                     current_desc = L
 
@@ -157,7 +156,40 @@ def analyze():
                 return None
 
             return pd.DataFrame(data, columns=["Narration","Amount"])
-        # =====================================================
+
+
+        # ⭐⭐⭐ THIRD FALLBACK — OCR ⭐⭐⭐
+        def ocr_reader():
+            import fitz
+            import pytesseract
+            from PIL import Image
+
+            doc = fitz.open(path)
+            data = []
+
+            for page in doc:
+                pix = page.get_pixmap()
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                text = pytesseract.image_to_string(img)
+
+                for L in text.split("\n"):
+                    amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)
+                    if not amt:
+                        continue
+
+                    value = amt[-1].replace("Rs.","").replace("₹","").replace(",","").strip()
+
+                    try:
+                        value = abs(float(value))
+                    except:
+                        continue
+
+                    data.append([L[:60], value])
+
+            if len(data)==0:
+                return None
+
+            return pd.DataFrame(data, columns=["Narration","Amount"])
 
 
         # ⭐ if NO TABLE — use fallback
@@ -167,6 +199,9 @@ def analyze():
 
             if df is None:
                 df = try_bank_line_mode()
+
+            if df is None:
+                df = ocr_reader()
 
             if df is None:
                 return "No transactions detected — please upload full detailed statement."
