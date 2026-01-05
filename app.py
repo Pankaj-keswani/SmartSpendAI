@@ -94,7 +94,49 @@ def analyze():
                 if table:
                     rows.extend(table)
 
-        # ⭐⭐⭐ NEW — REAL PAYTM PARSER ⭐⭐⭐
+        # ⭐⭐⭐ NEW — REAL PAYTM PARSER v2 ⭐⭐⭐
+        def parse_paytm_pdf_v2():
+
+            text = ""
+            with pdfplumber.open(path) as pdf:
+                for p in pdf.pages:
+                    text += (p.extract_text() or "") + "\n"
+
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+            data = []
+            current_desc = None
+
+            for L in lines:
+
+                # date wali line
+                if re.search(r"\d{1,2}\s\w{3}", L):
+                    current_desc = L
+                    continue
+
+                # next line → amount
+                amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)
+
+                if amt and current_desc:
+
+                    value = amt[-1].replace("Rs.","").replace("₹","").replace(",","").strip()
+
+                    try:
+                        value = abs(float(value))
+                    except:
+                        continue
+
+                    data.append([current_desc[:60], value])
+
+                    current_desc = None
+
+            if len(data)==0:
+                return None
+
+            return pd.DataFrame(data, columns=["Narration","Amount"])
+
+
+        # ⭐⭐⭐ OLD PAYTM PARSER ⭐⭐⭐
         def parse_paytm_pdf():
 
             text = ""
@@ -195,7 +237,10 @@ def analyze():
         # ⭐ if NO TABLE — use fallback
         if not rows:
 
-            df = parse_paytm_pdf()
+            df = parse_paytm_pdf_v2()
+
+            if df is None:
+                df = parse_paytm_pdf()
 
             if df is None:
                 df = try_bank_line_mode()
@@ -295,4 +340,3 @@ if __name__ == "__main__":
         port=port,
         debug=False
     )
-#comments
