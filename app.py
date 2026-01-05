@@ -66,7 +66,7 @@ def analyze():
                     rows.extend(table)
 
 
-        # -------- PAYTM PARSER --------
+        # -------- PAYTM PARSER (FINAL STABLE) --------
         def parse_paytm():
 
             text = ""
@@ -77,40 +77,44 @@ def analyze():
             lines = [l.strip() for l in text.split("\n") if l.strip()]
 
             data = []
-            date_line = None
-            desc_line = None
+            current_date = None
+            scan_lines_left = 0
 
             for L in lines:
 
+                # detect date line like 29 Dec
                 if re.match(r"^\d{1,2}\s\w{3}", L):
-                    date_line = L
-                    desc_line = None
+                    current_date = L
+                    scan_lines_left = 6   # next 6 lines may contain amount
                     continue
 
-                if date_line and not desc_line:
-                    desc_line = L
-                    continue
+                if scan_lines_left > 0:
 
-                amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)
+                    amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)
 
-                if amt and date_line and desc_line:
+                    if amt and current_date:
 
-                    v = amt[-1]
-                    v = v.replace("Rs.","").replace("₹","").replace(",","").replace(" ","")
+                        v = amt[-1]
+                        v = (
+                            v.replace("Rs.","")
+                            .replace("₹","")
+                            .replace(",","")
+                            .replace(" ","")
+                            .replace("-","")
+                        )
 
-                    v = v.replace("-","")   # ABS
+                        try:
+                            v = float(v)
+                        except:
+                            continue
 
-                    try:
-                        v = float(v)
-                    except:
+                        data.append([current_date[:80], v])
+
+                        current_date = None
+                        scan_lines_left = 0
                         continue
 
-                    full = f"{date_line} — {desc_line}"
-
-                    data.append([full, v])
-
-                    date_line = None
-                    desc_line = None
+                    scan_lines_left -= 1
 
 
             if len(data)==0:
@@ -164,6 +168,7 @@ def analyze():
             df.columns = df.iloc[0]
             df = df.iloc[1:].copy()
 
+            # ---- SAFE COLUMN CREATION ----
             if "Narration" not in df.columns:
                 df["Narration"] = df.iloc[:,1]
 
