@@ -66,7 +66,8 @@ def analyze():
                     rows.extend(table)
 
 
-        # -------- PAYTM PARSER (FINAL STABLE) --------
+
+        # -------- PAYTM PDF PARSER (FINAL) --------
         def parse_paytm():
 
             text = ""
@@ -77,44 +78,61 @@ def analyze():
             lines = [l.strip() for l in text.split("\n") if l.strip()]
 
             data = []
+
+            current_block = []
             current_date = None
-            scan_lines_left = 0
 
             for L in lines:
 
-                # detect date line like 29 Dec
+                # detect transaction start
                 if re.match(r"^\d{1,2}\s\w{3}", L):
+                    # flush previous block
+                    if current_block and current_date:
+                        amt_lines = " ".join(current_block)
+                        amt = re.findall(r"(?:Rs\.?|₹)\s?[\d,]+", amt_lines)
+
+                        if amt:
+                            v = amt[-1]
+                            v = (
+                                v.replace("Rs.","")
+                                .replace("₹","")
+                                .replace(",","")
+                                .replace(" ","")
+                                .replace("-","")
+                            )
+                            try:
+                                v = float(v)
+                                data.append([current_date, v])
+                            except:
+                                pass
+
+                    # reset new block
                     current_date = L
-                    scan_lines_left = 6   # next 6 lines may contain amount
+                    current_block = []
                     continue
 
-                if scan_lines_left > 0:
+                if current_date:
+                    current_block.append(L)
 
-                    amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)
+            # flush last block
+            if current_block and current_date:
+                amt_lines = " ".join(current_block)
+                amt = re.findall(r"(?:Rs\.?|₹)\s?[\d,]+", amt_lines)
 
-                    if amt and current_date:
-
-                        v = amt[-1]
-                        v = (
-                            v.replace("Rs.","")
-                            .replace("₹","")
-                            .replace(",","")
-                            .replace(" ","")
-                            .replace("-","")
-                        )
-
-                        try:
-                            v = float(v)
-                        except:
-                            continue
-
-                        data.append([current_date[:80], v])
-
-                        current_date = None
-                        scan_lines_left = 0
-                        continue
-
-                    scan_lines_left -= 1
+                if amt:
+                    v = amt[-1]
+                    v = (
+                        v.replace("Rs.","")
+                        .replace("₹","")
+                        .replace(",","")
+                        .replace(" ","")
+                        .replace("-","")
+                    )
+                    try:
+                        v = float(v)
+                        data.append([current_date, v])
+                    except:
+                        pass
 
 
             if len(data)==0:
@@ -168,7 +186,6 @@ def analyze():
             df.columns = df.iloc[0]
             df = df.iloc[1:].copy()
 
-            # ---- SAFE COLUMN CREATION ----
             if "Narration" not in df.columns:
                 df["Narration"] = df.iloc[:,1]
 
@@ -176,7 +193,6 @@ def analyze():
                 df["Amount"] = df.iloc[:,-1]
 
 
-        # -------- SAFE CLEANING --------
         df["Amount"] = (
             df["Amount"].astype(str)
             .str.replace(",", "", regex=False)
