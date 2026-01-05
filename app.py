@@ -94,8 +94,8 @@ def analyze():
                 if table:
                     rows.extend(table)
 
-        # ⭐⭐⭐ NEW — REAL PAYTM PARSER v2 ⭐⭐⭐
-        def parse_paytm_pdf_v2():
+        # ⭐⭐⭐ NEW — REAL PAYTM PARSER v3 ⭐⭐⭐
+        def parse_paytm_pdf_v3():
 
             text = ""
             with pdfplumber.open(path) as pdf:
@@ -105,30 +105,31 @@ def analyze():
             lines = [l.strip() for l in text.split("\n") if l.strip()]
 
             data = []
-            current_desc = None
+            pending_desc = None
 
             for L in lines:
 
-                # date wali line
-                if re.search(r"\d{1,2}\s\w{3}", L):
-                    current_desc = L
+                # detect date+desc line
+                if re.match(r"^\d{1,2}\s\w{3}", L):
+                    pending_desc = L
                     continue
 
-                # next line → amount
+                # detect amount line
                 amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)
 
-                if amt and current_desc:
+                if amt and pending_desc:
 
-                    value = amt[-1].replace("Rs.","").replace("₹","").replace(",","").strip()
+                    value = amt[-1]
+                    value = value.replace("Rs.","").replace("₹","").replace(",","").replace(" ","").replace("-","")
 
                     try:
-                        value = abs(float(value))
+                        value = float(value)
                     except:
                         continue
 
-                    data.append([current_desc[:60], value])
+                    data.append([pending_desc[:80], value])
 
-                    current_desc = None
+                    pending_desc = None
 
             if len(data)==0:
                 return None
@@ -237,7 +238,7 @@ def analyze():
         # ⭐ if NO TABLE — use fallback
         if not rows:
 
-            df = parse_paytm_pdf_v2()
+            df = parse_paytm_pdf_v3()
 
             if df is None:
                 df = parse_paytm_pdf()
