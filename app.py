@@ -94,34 +94,36 @@ def analyze():
                 if table:
                     rows.extend(table)
 
-        # ==========  FALLBACK EXTRACTORS ADDED HERE ==========
-        def try_paytm_style():
-            text_rows = []
+        # ⭐⭐⭐ NEW — REAL PAYTM PARSER ⭐⭐⭐
+        def parse_paytm_pdf():
+
+            text = ""
             with pdfplumber.open(path) as pdf:
-                for page in pdf.pages:
-                    lines = (page.extract_text() or "").split("\n")
-                    for L in lines:
-                        if "Rs." in L or "₹" in L:
-                            text_rows.append(L)
+                for p in pdf.pages:
+                    text += (p.extract_text() or "") + "\n"
+
+            lines = text.split("\n")
 
             data = []
-            for line in text_rows:
-                amt = re.findall(r"[-]?\s?(?:Rs\.?|₹)\s?[\d,]+", line)
-                if not amt:
-                    continue
+            current_desc = ""
 
-                amt = amt[-1].replace("Rs.","").replace("₹","").replace(",","").strip()
+            for L in lines:
 
-                try:
-                    amt = float(amt)
-                except:
-                    continue
+                # pick lines like: 29 Dec  Google Play Recharge ...
+                if re.search(r"\d{1,2}\s\w{3}", L):
+                    current_desc = L
 
-                # ⭐ PAYTM ALWAYS EXPENSE → POSITIVE VALUE
-                amt = abs(amt)
+                amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)
 
-                desc = line[:60]
-                data.append([desc, amt])
+                if amt:
+                    value = amt[-1].replace("Rs.","").replace("₹","").replace(",","").strip()
+
+                    try:
+                        value = abs(float(value))
+                    except:
+                        continue
+
+                    data.append([current_desc[:60], value])
 
             if len(data)==0:
                 return None
@@ -129,6 +131,7 @@ def analyze():
             return pd.DataFrame(data, columns=["Narration","Amount"])
 
 
+        # ⭐⭐⭐ SECOND FALLBACK – SBI / ICICI TEXT ⭐⭐⭐
         def try_bank_line_mode():
             text_rows = []
             with pdfplumber.open(path) as pdf:
@@ -157,30 +160,27 @@ def analyze():
         # =====================================================
 
 
+        # ⭐ if NO TABLE — use fallback
         if not rows:
-            # FIRST TRY PAYTM
-            df = try_paytm_style()
 
-            # THEN TRY SBI / HDFC / ICICI etc.
+            df = parse_paytm_pdf()
+
             if df is None:
                 df = try_bank_line_mode()
 
             if df is None:
-                return "No tables detected in PDF. Try downloading Detailed Statement format."
+                return "No transactions detected — please upload full detailed statement."
 
             narr_col = "Narration"
             date_col = None
 
         else:
-
             df = pd.DataFrame(rows)
 
-            # ---------- SAFE HEADER ----------
             df.columns = df.iloc[0]
             df = df.iloc[1:].copy()
             df.reset_index(drop=True, inplace=True)
 
-            # ---------- SAFE COLUMN DETECT ----------
             def find(col, words):
                 for c in col:
                     text = str(c).lower()
@@ -197,7 +197,6 @@ def analyze():
             if not narr_col:
                 narr_col = df.columns[1]
 
-            # ---------- AMOUNT ----------
             if debit_col and credit_col:
                 df["Amount"] = df[debit_col].fillna(df[credit_col])
             elif debit_col:
@@ -211,17 +210,14 @@ def analyze():
             df["Amount"]
             .astype(str)
             .str.replace(",", "", regex=False)
-            .replace("-", "0")
         )
 
         df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(0)
 
-        df = df[df["Amount"] != 0]   # ⭐ ZERO ONLY REMOVE
+        df = df[df["Amount"] != 0]
 
-        # remove summary rows
         df = df[~df[narr_col].astype(str).str.upper().str.contains("TOTAL|INTEREST", na=False)]
 
-        # if still empty → safe return
         if len(df)==0:
             return "No valid transactions detected in this statement."
 
@@ -230,7 +226,6 @@ def analyze():
         total_spend = round(df["Amount"].sum(), 2)
         total_transactions = len(df)
 
-        # ---------- SAFE GROUP ----------
         cat_group = df.groupby("AI Category")["Amount"].sum()
 
         if len(cat_group)==0:
