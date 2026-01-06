@@ -17,16 +17,13 @@ BANK_NOISE = [
 # ---------------- SMART CATEGORY ENGINE -------------------
 def detect_category(text):
     raw = str(text).lower()
-
-    # Step 1: Remove Bank Noise
     for b in BANK_NOISE:
         raw = raw.replace(b, " ")
 
-    # Step 2: Clean special characters
     raw = re.sub(r"[^a-zA-Z ]", "", raw)
     raw = raw.replace(" ", "")
 
-    # Step 3: Use User's Specific Replace Map
+    # User's Specific Mapping
     replace_map = {  
         "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt", "meesho", "me eesho", "m essho", "m e e s h o"],  
         "swiggy":["swiggy","swiggylimited"],  
@@ -42,34 +39,25 @@ def detect_category(text):
         "recharge":["recharge","billdesk"]  
     }   
 
-    detected_key = raw
     for key, arr in replace_map.items():
         for w in arr:
-            if w in raw:
-                detected_key = key
-                break
+            if w in raw: return key
 
-    # Step 4: Final Category Assignment
-    if any(x in detected_key for x in ["swiggy", "zomato"]): return "Food"
-    if any(x in detected_key for x in ["flipkart", "myntra", "jiomart", "ajio", "meesho"]): return "Shopping"
-    if any(x in detected_key for x in ["kirana", "mart", "store", "bigbasket"]): return "Grocery"
-    if any(x in detected_key for x in ["medical", "pharmacy"]): return "Healthcare"
-    if any(x in detected_key for x in ["uber", "ola"]): return "Travel"
-    if any(x in detected_key for x in ["recharge", "bill"]): return "Bills"
+    if any(x in raw for x in ["swiggy", "zomato"]): return "Food"
+    if any(x in raw for x in ["flipkart", "myntra", "jiomart", "ajio", "meesho"]): return "Shopping"
+    if any(x in raw for x in ["kirana", "mart", "store", "bigbasket"]): return "Grocery"
     if "upi" in str(text).lower(): return "Money Transfer"
 
     return "Others"
 
-# ⭐ HELPER: Clean Amount & Filter Transaction IDs ⭐
+# ⭐ FIXED: Amount Cleaner (Ignores IDs & Limits size) ⭐
 def clean_amt(val):
     if pd.isna(val) or str(val).strip() == "": return 0.0
-    # Sirf digits aur decimal point rakho
     v = re.sub(r'[^\d.]', '', str(val))
     try:
         num = float(v)
-        # Filter: Agar number 12-digit Ref No hai (e.g. 1479...) toh use ignore karo
-        # Koi bhi normal transaction 1 crore (8 digit) se bada nahi hoga
-        if num > 9999999 or len(v) >= 10: return 0.0 
+        # 12-digit Ref No check + Large amount filter
+        if num > 999999 or len(v) >= 10: return 0.0 
         return num
     except: return 0.0
 
@@ -86,9 +74,7 @@ def extract_data_from_pdf(path):
                 text = page.extract_text()
                 if text:
                     for line in text.split('\n'):
-                        # Regular check for decimal amounts
-                        if re.search(r'\d+\.\d{2}', line):
-                            all_rows.append([line])
+                        if re.search(r'\d+\.\d{2}', line): all_rows.append([line])
 
     if not all_rows: return None
     return process_raw_data(all_rows)
@@ -100,9 +86,10 @@ def process_raw_data(rows):
         df = df[1:].reset_index(drop=True)
 
     keywords = {
-        'date': ['date', 'txn', 'time', 'val'],
-        'desc': ['description', 'narration', 'particulars', 'details', 'remarks', 'info'],
-        'amt': ['amount', 'debit', 'withdrawal', 'outflow', 'dr', 'credit', 'deposit', 'cr']
+        'date': ['date', 'txn', 'time'],
+        'desc': ['description', 'narration', 'particulars', 'details', 'remarks'],
+        'debit': ['debit', 'withdraw', 'outflow', 'dr', 'paid'],
+        'credit': ['credit', 'deposit', 'inflow', 'cr', 'received']
     }
 
     def find_best_col(key_list):
@@ -112,22 +99,24 @@ def process_raw_data(rows):
 
     date_col = find_best_col(keywords['date'])
     desc_col = find_best_col(keywords['desc'])
-    amt_cols = [col for col in df.columns if any(k in str(col).lower() for k in keywords['amt'])]
+    debit_col = find_best_col(keywords['debit'])
+    credit_col = find_best_col(keywords['credit'])
 
     final_data = []
     for _, row in df.iterrows():
         try:
             description = str(row[desc_col]) if desc_col else str(row.values[0])
-            if len(description) < 3: continue
-
-            # Robust Amount Extraction
-            val = 0
-            for col in amt_cols:
-                parsed_val = clean_amt(row[col])
-                if parsed_val > 0:
-                    val = parsed_val
-                    break
             
+            # ⛔ FILTER: Ignore Summary/Total rows ⛔
+            if any(x in description.upper() for x in ["TOTAL", "SUMMARY", "BALANCE", "OPENING", "CLOSING", "LIMIT"]):
+                continue
+
+            # 💰 LOGIC: Only pick DEBIT (Spend) 💰
+            val = 0.0
+            if debit_col:
+                val = clean_amt(row[debit_col])
+            
+            # Agar Credit column mein value hai aur Debit 0 hai, toh skip (Credit = Spend nahi hai)
             if val == 0: continue
 
             date = str(row[date_col]) if date_col else "N/A"
@@ -160,8 +149,9 @@ def analyze():
         os.unlink(path)
 
         if df is None or df.empty:
-            return "❌ Could not detect transactions. Format may be unsupported."
+            return "❌ No valid spend (Debit) transactions detected."
 
+        # Final calculations
         total_spend = round(df["Amount"].sum(), 2)
         total_transactions = len(df)
         cat_group = df.groupby("AI Category")["Amount"].sum()
