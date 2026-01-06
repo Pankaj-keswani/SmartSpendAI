@@ -17,7 +17,6 @@ BANK_NOISE = [
 # ---------------- CATEGORY ENGINE -------------------  
 def detect_category(text):  
     raw = str(text).lower()  
-
     for b in BANK_NOISE:  
         raw = raw.replace(b, " ")  
 
@@ -41,8 +40,7 @@ def detect_category(text):
 
     for key, arr in replace_map.items():  
         for w in arr:  
-            if w in raw:  
-                raw = key  
+            if w in raw: raw = key  
 
     if "swiggy" in raw or "zomato" in raw: return "Food"  
     if "flipkart" in raw or "myntra" in raw or "jiomart" in raw or "ajio" in raw: return "Shopping"  
@@ -54,11 +52,21 @@ def detect_category(text):
 
     return "Others"  
 
+# ⭐ NEW: Strong Amount Cleaner to ignore Long IDs ⭐
+def clean_amt(val):
+    if pd.isna(val) or str(val).strip() == "": return 0.0
+    # Sirf digits aur decimal point rakho
+    v = re.sub(r'[^\d.]', '', str(val))
+    try:
+        num = float(v)
+        # Filter: Agar number 10 digit se bada hai toh wo Transaction ID hai, Amount nahi
+        if num > 9999999: return 0.0 
+        return num
+    except: return 0.0
 
 @app.route("/")  
 def index():  
     return render_template("index.html")  
-
 
 @app.route("/analyze", methods=["POST"])  
 def analyze():  
@@ -72,44 +80,40 @@ def analyze():
         with pdfplumber.open(path) as pdf:  
             for page in pdf.pages:  
                 table = page.extract_table()  
-                if table:  
-                    rows.extend(table)  
+                if table: rows.extend(table)  
 
-        # ⭐⭐⭐ 1. PAYTM PARSER (Original) ⭐⭐⭐  
+        # ⭐ 1. PAYTM PARSER (Fixed Regex) ⭐
         def parse_paytm_pdf():  
             text = ""  
             with pdfplumber.open(path) as pdf:  
-                for p in pdf.pages:  
-                    text += (p.extract_text() or "") + "\n"  
+                for p in pdf.pages: text += (p.extract_text() or "") + "\n"  
             lines = text.split("\n")  
             data = []  
             current_desc = ""  
             for L in lines:  
                 if re.search(r"\d{1,2}\s\w{3}", L): current_desc = L  
-                amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+(?:\.\d{2})?", L)  
+                # Regex modified to only pick small numbers (max 7 digits before decimal)
+                amt = re.findall(r"(?:Rs\.?|₹)\s?(\d{1,7}(?:\.\d{2})?)", L)  
                 if amt:  
-                    value = amt[-1].replace("Rs.","").replace("₹","").replace(",","").strip()  
-                    try:  
-                        data.append([current_desc[:60], abs(float(value))])  
-                    except: continue  
+                    val = clean_amt(amt[-1])
+                    if val > 0: data.append([current_desc[:60], val])  
             return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None  
 
-        # ⭐⭐⭐ 2. SBI / ICICI LINE MODE (Original) ⭐⭐⭐  
+        # ⭐ 2. SBI / ICICI LINE MODE (Fixed Regex) ⭐
         def try_bank_line_mode():  
             text_rows = []  
             with pdfplumber.open(path) as pdf:  
-                for page in pdf.pages:  
-                    text_rows.extend((page.extract_text() or "").split("\n"))  
+                for page in pdf.pages: text_rows.extend((page.extract_text() or "").split("\n"))  
             data=[]  
             for L in text_rows:  
-                amt = re.findall(r"[\d,]+\.\d\d", L)  
+                # Sirf wo numbers pakdo jo decimal ke saath hain aur chhote hain
+                amt = re.findall(r"(\d{1,7}\.\d\d)", L)  
                 if amt:  
-                    try:  
-                        data.append([L[:50], float(amt[-1].replace(",",""))])  
-                    except: continue  
+                    val = clean_amt(amt[-1])
+                    if val > 0: data.append([L[:50], val])  
             return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None  
 
-        # ⭐⭐⭐ 3. OCR READER (Original) ⭐⭐⭐  
+        # ⭐ 3. OCR READER (Fixed) ⭐
         def ocr_reader():  
             import fitz, pytesseract  
             from PIL import Image  
@@ -120,15 +124,12 @@ def analyze():
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)  
                 text = pytesseract.image_to_string(img)  
                 for L in text.split("\n"):  
-                    amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)  
+                    amt = re.findall(r"(?:Rs\.?|₹)\s?(\d{1,7}(?:\.\d{2})?)", L)  
                     if amt:  
-                        try:  
-                            val = amt[-1].replace("Rs.","").replace("₹","").replace(",","").strip()  
-                            data.append([L[:60], abs(float(val))])  
-                        except: continue  
+                        val = clean_amt(amt[-1])
+                        if val > 0: data.append([L[:60], val])  
             return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None  
 
-        # --- LOGIC START ---
         if not rows:  
             df = parse_paytm_pdf()  
             if df is None: df = try_bank_line_mode()  
@@ -147,17 +148,10 @@ def analyze():
 
             date_col = find(df.columns, ["date","txn","posting"])  
             narr_col = find(df.columns, ["narr","details","description","particular","remarks"])  
-            debit_col = find(df.columns, ["debit","withdraw","dr","outflow"])  
-            credit_col = find(df.columns, ["credit","deposit","cr","inflow"])  
+            debit_col = find(df.columns, ["debit","withdraw","dr"])  
+            credit_col = find(df.columns, ["credit","deposit","cr"])  
 
             if not narr_col: narr_col = df.columns[1]  
-
-            # Fixed Calculation: Cleaning strings before numeric conversion
-            def clean_amt(val):
-                if pd.isna(val) or str(val).strip() == "": return 0.0
-                v = re.sub(r'[^\d.]', '', str(val))
-                try: return float(v)
-                except: return 0.0
 
             if debit_col and credit_col:
                 df["Amount"] = df.apply(lambda r: clean_amt(r[debit_col]) if clean_amt(r[debit_col]) > 0 else clean_amt(r[credit_col]), axis=1)
@@ -166,7 +160,6 @@ def analyze():
             else:
                 df["Amount"] = df.iloc[:,-1].apply(clean_amt)
 
-        # Final Cleaning
         df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(0)  
         df = df[df["Amount"] > 0]  
         df = df[~df[narr_col].astype(str).str.upper().str.contains("TOTAL|INTEREST|BALANCE|LIMIT", na=False)]  
