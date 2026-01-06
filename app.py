@@ -1,29 +1,29 @@
-import os
-import re
-import tempfile
-import pandas as pd
-import pdfplumber
-from flask import Flask, render_template, request
+import os  
+import re  
+import tempfile  
+from flask import Flask, render_template, request  
+import pandas as pd  
+import pdfplumber   
 
-app = Flask(__name__)
+app = Flask(__name__)  
 
-# ----------------- Bank Noise Remove ----------------
-BANK_NOISE = [
-    "upi","transfer","hdfc","sbin","icici","idfc",
-    "utr","payment","paid","via","yesb","axis",
-    "from","to","ref","upiint","upiintnet"
-]
+# ----------------- Bank Noise Remove ----------------  
+BANK_NOISE = [  
+    "upi","transfer","hdfc","sbin","icici","idfc",  
+    "utr","payment","paid","via","yesb","axis",  
+    "from","to","ref","upiint","upiintnet"  
+]  
 
-# ---------------- SMART CATEGORY ENGINE -------------------
-def detect_category(text):
-    raw = str(text).lower()
-    for b in BANK_NOISE:
-        raw = raw.replace(b, " ")
+# ---------------- CATEGORY ENGINE (TERA ORIGINAL) -------------------  
+def detect_category(text):  
+    raw = str(text).lower()  
 
-    raw = re.sub(r"[^a-zA-Z ]", "", raw)
-    raw = raw.replace(" ", "")
+    for b in BANK_NOISE:  
+        raw = raw.replace(b, " ")  
 
-    # User's Specific Mapping
+    raw = re.sub(r"[^a-zA-Z ]", "", raw)  
+    raw = raw.replace(" ", "")  
+
     replace_map = {  
         "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt", "meesho", "me eesho", "m essho", "m e e s h o"],  
         "swiggy":["swiggy","swiggylimited"],  
@@ -37,137 +37,149 @@ def detect_category(text):
         "ola":["ola"],  
         "zomato":["zomato","eternal","blinkit","b linkit"],  
         "recharge":["recharge","billdesk"]  
-    }   
+    }  
 
-    for key, arr in replace_map.items():
-        for w in arr:
-            if w in raw: return key
+    for key, arr in replace_map.items():  
+        for w in arr:  
+            if w in raw:  
+                raw = key  
 
-    if any(x in raw for x in ["swiggy", "zomato"]): return "Food"
-    if any(x in raw for x in ["flipkart", "myntra", "jiomart", "ajio", "meesho"]): return "Shopping"
-    if any(x in raw for x in ["kirana", "mart", "store", "bigbasket"]): return "Grocery"
-    if "upi" in str(text).lower(): return "Money Transfer"
+    if "swiggy" in raw or "zomato" in raw: return "Food"  
+    if "flipkart" in raw or "myntra" in raw or "jiomart" in raw or "ajio" in raw: return "Shopping"  
+    if "kirana" in raw or "mart" in raw or "store" in raw or "bigbasket" in raw: return "Grocery"  
+    if "medical" in raw or "pharmacy" in raw: return "Healthcare"  
+    if "uber" in raw or "ola" in raw: return "Travel"  
+    if "recharge" in raw or "bill" in raw: return "Bills"  
+    if "upi" in str(text).lower(): return "Money Transfer"  
 
-    return "Others"
+    return "Others"  
 
-# ⭐ FIXED: Amount Cleaner (Ignores IDs & Limits size) ⭐
-def clean_amt(val):
+# ⭐ HELPER: Scientific Notation aur UPI ID filter karne ke liye ⭐
+def clean_amount_val(val):
     if pd.isna(val) or str(val).strip() == "": return 0.0
     v = re.sub(r'[^\d.]', '', str(val))
     try:
         num = float(v)
-        # 12-digit Ref No check + Large amount filter
+        # Filter: Agar number 12-digit UPI ID hai toh ignore karo
         if num > 999999 or len(v) >= 10: return 0.0 
         return num
     except: return 0.0
 
-# ---------------- ROBUST PDF PARSER -------------------
-def extract_data_from_pdf(path):
-    all_rows = []
-    with pdfplumber.open(path) as pdf:
-        for page in pdf.pages:
-            table = page.extract_table()
-            if table:
-                cleaned_table = [[str(cell) if cell else "" for cell in row] for row in table]
-                all_rows.extend(cleaned_table)
-            else:
-                text = page.extract_text()
-                if text:
-                    for line in text.split('\n'):
-                        if re.search(r'\d+\.\d{2}', line): all_rows.append([line])
+@app.route("/")  
+def index():  
+    return render_template("index.html")  
 
-    if not all_rows: return None
-    return process_raw_data(all_rows)
+@app.route("/analyze", methods=["POST"])  
+def analyze():  
+    try:  
+        file = request.files["file"]  
+        tmp = tempfile.mkdtemp()  
+        path = os.path.join(tmp, "stmt.pdf")  
+        file.save(path)  
 
-def process_raw_data(rows):
-    df = pd.DataFrame(rows)
-    if len(df) > 1:
-        df.columns = [str(c).lower() for c in df.iloc[0]]
-        df = df[1:].reset_index(drop=True)
+        rows = []  
+        with pdfplumber.open(path) as pdf:  
+            for page in pdf.pages:  
+                table = page.extract_table()  
+                if table: rows.extend(table)  
 
-    keywords = {
-        'date': ['date', 'txn', 'time'],
-        'desc': ['description', 'narration', 'particulars', 'details', 'remarks'],
-        'debit': ['debit', 'withdraw', 'outflow', 'dr', 'paid'],
-        'credit': ['credit', 'deposit', 'inflow', 'cr', 'received']
-    }
+        # --- TERE ORIGINAL FALLBACKS (With Amount Fix) ---
+        def universal_parser():
+            text = ""
+            with pdfplumber.open(path) as pdf:
+                for p in pdf.pages: text += (p.extract_text() or "") + "\n"
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            data = []
+            for i, line in enumerate(lines):
+                amt = re.findall(r"(?:Rs\.?|INR|₹)\s?-?\s?[\d,]+(?:\.\d{1,2})?", line)
+                if amt:
+                    value = clean_amount_val(amt[-1])
+                    if value > 0:
+                        narration = lines[i-1] if i>0 else line
+                        data.append([narration[:80], value])
+            return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None
 
-    def find_best_col(key_list):
-        for col in df.columns:
-            if any(k in str(col).lower() for k in key_list): return col
-        return None
+        def parse_paytm_pdf():  
+            text = ""  
+            with pdfplumber.open(path) as pdf:
+                for p in pdf.pages: text += (p.extract_text() or "") + "\n"  
+            lines = text.split("\n")  
+            data = []  
+            current_desc = ""  
+            for L in lines:  
+                if re.search(r"\d{1,2}\s\w{3}", L): current_desc = L  
+                amt = re.findall(r"-?\s?(?:Rs\.?|₹)\s?[\d,]+", L)  
+                if amt:  
+                    value = clean_amount_val(amt[-1])
+                    if value > 0: data.append([current_desc[:60], value])  
+            return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None  
 
-    date_col = find_best_col(keywords['date'])
-    desc_col = find_best_col(keywords['desc'])
-    debit_col = find_best_col(keywords['debit'])
-    credit_col = find_best_col(keywords['credit'])
+        def try_bank_line_mode():  
+            text_rows = []  
+            with pdfplumber.open(path) as pdf:
+                for page in pdf.pages: text_rows.extend((page.extract_text() or "").split("\n"))  
+            data=[]  
+            for L in text_rows:  
+                amt = re.findall(r"[\d,]+\.\d\d", L)  
+                if amt:  
+                    value = clean_amount_val(amt[-1])
+                    if value > 0: data.append([L[:50], value])  
+            return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None  
 
-    final_data = []
-    for _, row in df.iterrows():
-        try:
-            description = str(row[desc_col]) if desc_col else str(row.values[0])
+        # --- MAIN LOGIC ---
+        if not rows:  
+            df = parse_paytm_pdf()  
+            if df is None: df = universal_parser()
+            if df is None: df = try_bank_line_mode()  
+            if df is None: return "No transactions detected — please upload full detailed statement."  
+            narr_col, date_col = "Narration", None  
+        else:  
+            df = pd.DataFrame(rows)  
+            df.columns = [str(c).lower() for c in df.iloc[0]]
+            df = df.iloc[1:].copy()  
             
-            # ⛔ FILTER: Ignore Summary/Total rows ⛔
-            if any(x in description.upper() for x in ["TOTAL", "SUMMARY", "BALANCE", "OPENING", "CLOSING", "LIMIT"]):
-                continue
+            def find(col, words):  
+                for c in col:  
+                    if any(w in str(c) for w in words): return c  
+                return None  
 
-            # 💰 LOGIC: Only pick DEBIT (Spend) 💰
-            val = 0.0
+            date_col = find(df.columns, ["date","txn","posting","transaction"])  
+            narr_col = find(df.columns, ["narr","details","description","particular","remarks","info"])  
+            debit_col = find(df.columns, ["debit","withdraw","dr","outflow"])  
+            credit_col = find(df.columns, ["credit","deposit","cr","inflow"])  
+
+            if not narr_col: narr_col = df.columns[1]  
+
+            # 🔥 ONLY DEBIT LOGIC (Spends only) 🔥
             if debit_col:
-                val = clean_amt(row[debit_col])
-            
-            # Agar Credit column mein value hai aur Debit 0 hai, toh skip (Credit = Spend nahi hai)
-            if val == 0: continue
+                df["Amount"] = df[debit_col].apply(clean_amount_val)
+            else:
+                df["Amount"] = df.iloc[:,-1].apply(clean_amount_val)
 
-            date = str(row[date_col]) if date_col else "N/A"
+        # Final Cleaning: Ignore Summary/Total rows
+        df = df[df["Amount"] > 0].copy()
+        df = df[~df[narr_col].astype(str).str.upper().str.contains("TOTAL|INTEREST|BALANCE|SUMMARY|LIMIT", na=False)]  
 
-            final_data.append({
-                "Transaction Date": date,
-                "Description/Narration": description[:100],
-                "Amount": val,
-                "AI Category": detect_category(description)
-            })
-        except: continue
+        if df.empty: return "No valid transactions detected in this statement."  
 
-    return pd.DataFrame(final_data)
+        df["AI Category"] = df[narr_col].apply(detect_category)  
+        total_spend = round(df["Amount"].sum(), 2)  
+        total_transactions = len(df)  
+        
+        cat_group = df.groupby("AI Category")["Amount"].sum()  
+        top_category = cat_group.idxmax() if not cat_group.empty else "Not Available"  
+        cat_summary = cat_group.reset_index().values.tolist()  
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+        rows_dict = df.rename(columns={  
+            date_col if date_col else narr_col: "Transaction Date",  
+            narr_col: "Description/Narration"  
+        }).to_dict("records")  
 
-@app.route("/analyze", methods=["POST"])
-def analyze():
-    try:
-        file = request.files.get("file")
-        if not file: return "No file uploaded"
+        return render_template("dashboard.html", rows=rows_dict, total_spend=total_spend, 
+                               total_transactions=total_transactions, top_category=top_category, 
+                               category_summary=cat_summary)  
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            file.save(tmp.name)
-            path = tmp.name
+    except Exception as e: return f"❌ Error: {str(e)}"  
 
-        df = extract_data_from_pdf(path)
-        os.unlink(path)
-
-        if df is None or df.empty:
-            return "❌ No valid spend (Debit) transactions detected."
-
-        # Final calculations
-        total_spend = round(df["Amount"].sum(), 2)
-        total_transactions = len(df)
-        cat_group = df.groupby("AI Category")["Amount"].sum()
-        cat_summary = cat_group.reset_index().values.tolist()
-        top_cat = cat_group.idxmax() if not cat_group.empty else "N/A"
-
-        return render_template(
-            "dashboard.html",
-            rows=df.to_dict("records"),
-            total_spend=total_spend,
-            total_transactions=total_transactions,
-            top_category=top_cat,
-            category_summary=cat_summary
-        )
-    except Exception as e:
-        return f"❌ Error: {str(e)}"
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+if __name__ == "__main__":  
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
