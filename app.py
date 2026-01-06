@@ -24,27 +24,27 @@ def detect_category(text):
     raw = raw.replace(" ", "")  
 
     replace_map = {  
-        "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt", "meesho", "me eesho", "m essho", "m e e s h o"],  
+        "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flipkrt", "meesho"],  
         "swiggy":["swiggy","swiggylimited"],  
         "myntra":["myntra"],  
         "jiomart":["jiomart"],  
         "ajio":["ajio"],  
-        "bigbasket":["bigbasket","dealshare","deal share","de alshare"],  
+        "bigbasket":["bigbasket","dealshare"],  
         "medical":["medical","pharmacy","chemist"],  
         "kirana":["kirana","mart","store"],  
         "uber":["uber"],  
         "ola":["ola"],  
-        "zomato":["zomato","eternal","blinkit","b linkit"],  
+        "zomato":["zomato","blinkit"],  
         "recharge":["recharge","billdesk"]  
     }  
 
     for key, arr in replace_map.items():  
         for w in arr:  
-            if w in raw: raw = key  
+            if w in raw: return key  
 
     if "swiggy" in raw or "zomato" in raw: return "Food"  
-    if "flipkart" in raw or "myntra" in raw or "jiomart" in raw or "ajio" in raw: return "Shopping"  
-    if "kirana" in raw or "mart" in raw or "store" in raw or "bigbasket" in raw: return "Grocery"  
+    if any(x in raw for x in ["flipkart", "myntra", "ajio", "meesho"]): return "Shopping"  
+    if any(x in raw for x in ["kirana", "mart", "store", "bigbasket"]): return "Grocery"  
     if "medical" in raw or "pharmacy" in raw: return "Healthcare"  
     if "uber" in raw or "ola" in raw: return "Travel"  
     if "recharge" in raw or "bill" in raw: return "Bills"  
@@ -52,15 +52,16 @@ def detect_category(text):
 
     return "Others"  
 
-# ⭐ NEW: Strong Amount Cleaner to ignore Long IDs ⭐
+# ⭐ NEW: Strong Amount Filter to avoid Scientific Notation (ID vs Amount) ⭐
 def clean_amt(val):
     if pd.isna(val) or str(val).strip() == "": return 0.0
     # Sirf digits aur decimal point rakho
     v = re.sub(r'[^\d.]', '', str(val))
     try:
         num = float(v)
-        # Filter: Agar number 10 digit se bada hai toh wo Transaction ID hai, Amount nahi
-        if num > 9999999: return 0.0 
+        # 12-digit Reference Number Filter: 
+        # Agar number 1 crore (8 digit) se bada hai, toh wo ID hai, amount nahi.
+        if num > 9999999 or len(v) >= 10: return 0.0 
         return num
     except: return 0.0
 
@@ -82,93 +83,68 @@ def analyze():
                 table = page.extract_table()  
                 if table: rows.extend(table)  
 
-        # ⭐ 1. PAYTM PARSER (Fixed Regex) ⭐
-        def parse_paytm_pdf():  
+        # ⭐ 1. PAYTM/GENERAL TEXT PARSER ⭐
+        def parse_text_fallback():  
             text = ""  
             with pdfplumber.open(path) as pdf:  
                 for p in pdf.pages: text += (p.extract_text() or "") + "\n"  
+            
             lines = text.split("\n")  
             data = []  
-            current_desc = ""  
-            for L in lines:  
-                if re.search(r"\d{1,2}\s\w{3}", L): current_desc = L  
-                # Regex modified to only pick small numbers (max 7 digits before decimal)
-                amt = re.findall(r"(?:Rs\.?|₹)\s?(\d{1,7}(?:\.\d{2})?)", L)  
-                if amt:  
-                    val = clean_amt(amt[-1])
-                    if val > 0: data.append([current_desc[:60], val])  
-            return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None  
-
-        # ⭐ 2. SBI / ICICI LINE MODE (Fixed Regex) ⭐
-        def try_bank_line_mode():  
-            text_rows = []  
-            with pdfplumber.open(path) as pdf:  
-                for page in pdf.pages: text_rows.extend((page.extract_text() or "").split("\n"))  
-            data=[]  
-            for L in text_rows:  
-                # Sirf wo numbers pakdo jo decimal ke saath hain aur chhote hain
-                amt = re.findall(r"(\d{1,7}\.\d\d)", L)  
-                if amt:  
-                    val = clean_amt(amt[-1])
-                    if val > 0: data.append([L[:50], val])  
-            return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None  
-
-        # ⭐ 3. OCR READER (Fixed) ⭐
-        def ocr_reader():  
-            import fitz, pytesseract  
-            from PIL import Image  
-            doc = fitz.open(path)  
-            data = []  
-            for page in doc:  
-                pix = page.get_pixmap()  
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)  
-                text = pytesseract.image_to_string(img)  
-                for L in text.split("\n"):  
-                    amt = re.findall(r"(?:Rs\.?|₹)\s?(\d{1,7}(?:\.\d{2})?)", L)  
-                    if amt:  
-                        val = clean_amt(amt[-1])
-                        if val > 0: data.append([L[:60], val])  
+            for i, L in enumerate(lines):
+                # Regex for currency: Matches 1.00 to 99,999.00 but ignores 12-digit strings
+                amt_match = re.findall(r"(?:Rs\.?|₹|\s)(\d{1,6}(?:\.\d{2}))(?!\d)", L)
+                if amt_match:
+                    val = clean_amt(amt_match[-1])
+                    if val > 0:
+                        desc = lines[i][:60] if len(lines[i]) > 10 else L[:60]
+                        data.append([desc, val])  
             return pd.DataFrame(data, columns=["Narration","Amount"]) if data else None  
 
         if not rows:  
-            df = parse_paytm_pdf()  
-            if df is None: df = try_bank_line_mode()  
-            if df is None: df = ocr_reader()  
-            if df is None: return "No transactions detected."  
+            df = parse_text_fallback()  
+            if df is None: return "❌ No transactions detected. PDF structure unknown."  
             narr_col, date_col = "Narration", None  
         else:  
             df = pd.DataFrame(rows)  
-            df.columns = df.iloc[0]  
+            df.columns = [str(c).lower() for c in df.iloc[0]]
             df = df.iloc[1:].copy()  
             
-            def find(col, words):  
-                for c in col:  
-                    if any(w in str(c).lower() for w in words): return c  
+            def find(col_list, keywords):  
+                for c in col_list:  
+                    if any(w in str(c) for w in keywords): return c  
                 return None  
 
             date_col = find(df.columns, ["date","txn","posting"])  
             narr_col = find(df.columns, ["narr","details","description","particular","remarks"])  
-            debit_col = find(df.columns, ["debit","withdraw","dr"])  
-            credit_col = find(df.columns, ["credit","deposit","cr"])  
+            debit_col = find(df.columns, ["debit","withdraw","dr","outflow"])  
+            credit_col = find(df.columns, ["credit","deposit","cr","inflow"])  
 
-            if not narr_col: narr_col = df.columns[1]  
+            if not narr_col: narr_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]  
 
+            # Calculation Fix: Priority to Debit/Withdrawal column
             if debit_col and credit_col:
                 df["Amount"] = df.apply(lambda r: clean_amt(r[debit_col]) if clean_amt(r[debit_col]) > 0 else clean_amt(r[credit_col]), axis=1)
             elif debit_col:
                 df["Amount"] = df[debit_col].apply(clean_amt)
+            elif credit_col:
+                df["Amount"] = df[credit_col].apply(clean_amt)
             else:
-                df["Amount"] = df.iloc[:,-1].apply(clean_amt)
+                # Last resort: Try cleaning every column and find the first number
+                df["Amount"] = df.apply(lambda r: next((clean_amt(v) for v in r if clean_amt(v) > 0), 0.0), axis=1)
 
-        df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(0)  
-        df = df[df["Amount"] > 0]  
-        df = df[~df[narr_col].astype(str).str.upper().str.contains("TOTAL|INTEREST|BALANCE|LIMIT", na=False)]  
+        # Final Cleanup
+        df = df[df["Amount"] > 0].copy()
+        if narr_col not in df.columns: df[narr_col] = "Transaction"
+        
+        df = df[~df[narr_col].astype(str).str.upper().str.contains("TOTAL|INTEREST|BALANCE|LIMIT|OPENING", na=False)]  
 
-        if df.empty: return "No valid transactions detected."  
+        if df.empty: return "❌ No valid transactions detected in this statement."  
 
         df["AI Category"] = df[narr_col].apply(detect_category)  
         total_spend = round(df["Amount"].sum(), 2)  
         total_transactions = len(df)  
+        
         cat_group = df.groupby("AI Category")["Amount"].sum()  
         top_category = cat_group.idxmax() if not cat_group.empty else "N/A"  
         cat_summary = cat_group.reset_index().values.tolist()  
