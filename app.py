@@ -14,7 +14,6 @@ BANK_NOISE = [
 ]
 
 
-# ---------------- CATEGORY ENGINE ----------------
 def detect_category(text):
     raw = str(text).lower()
 
@@ -61,165 +60,69 @@ def detect_category(text):
 
 
 
-# ---------------- AMOUNT CLEANER ----------------
 def clean_amt(v):
-    if not v or str(v).strip()=="" or str(v).strip()=="-":
-        return 0.0
-
     v = re.sub(r"[^\d.]", "", str(v))
 
     try:
         num = float(v)
-
-        if len(v.replace(".",""))>=10:
-            return 0.0
-
-        if num>9999999:
-            return 0.0
-
+        if len(v.replace(".",""))>=10: return 0.0
+        if num>9999999: return 0.0
         return num
     except:
         return 0.0
 
 
 
-# ---------------- TABLE PARSER (FULL DESCRIPTION) ----------------
-def parse_table(pdf):
+# ⭐ TEXT PARSER — FULL DESCRIPTION ⭐
+def extract_data(path):
 
-    rows=[]
+    tx = []
 
-    for page in pdf.pages:
-        table = page.extract_table(
-            {
-                "vertical_strategy": "lines",
-                "horizontal_strategy": "lines",
-            }
-        )
+    with pdfplumber.open(path) as pdf:
 
-        if table:
-            table = [[str(c) if c else "" for c in r] for r in table]
-            rows.extend(table)
+        for page in pdf.pages:
 
+            lines = page.extract_text().split("\n")
 
-    if not rows:
-        return None
+            current = None
 
+            for line in lines:
 
-    df = pd.DataFrame(rows)
+                # date format like: 04 Jan 2026
+                date_match = re.match(r"(\d{2}\s\w+\s\d{4})", line)
 
-    headers = [str(x).lower() for x in df.iloc[0]]
-    df=df[1:].reset_index(drop=True)
+                amt_match = re.findall(r"\d+\.\d{2}", line)
 
+                # -------- NEW TRANSACTION --------
+                if date_match and amt_match:
 
-    def find(keys):
-        for i,h in enumerate(headers):
-            if any(k in h for k in keys):
-                return i
-        return None
+                    if current:
+                        tx.append(current)
 
+                    current = {
+                        "Date": date_match.group(1),
+                        "Description": line,
+                        "Amount": clean_amt(amt_match[0])
+                    }
 
-    idx_date = find(["date"])
-    idx_desc = find(["particular","description","narration","details"])
-    idx_debit = find(["withdraw","debit","dr"])
-    idx_credit = find(["credit","deposit","cr"])
+                # -------- CONTINUATION LINES --------
+                else:
+                    if current:
+                        current["Description"] += " " + line
 
-
-    final=[]
-    current=None
-
-
-    for i in range(len(df)):
-        row=df.iloc[i]
-
-        date = str(row[idx_date]).strip() if idx_date is not None else ""
-        desc = str(row[idx_desc]).strip() if idx_desc is not None else ""
-        debit = clean_amt(row[idx_debit]) if idx_debit is not None else 0
-        credit = clean_amt(row[idx_credit]) if idx_credit is not None else 0
-
-
-        # -------- if this row has valid date --------
-        if re.search(r"\d{2}\s\w{3}\s\d{4}", date) or re.search(r"\d{2}\s\w+\s\d{4}", date):
 
             if current:
-                final.append(current)
-
-            current={
-                "Date":date,
-                "Description":desc,
-                "Amount":debit
-            }
+                tx.append(current)
 
 
-        else:
-            # continuation description
-            if current and desc:
-                current["Description"] += " " + desc
+    df = pd.DataFrame(tx)
 
-            if current and not current["Amount"]:
-                current["Amount"]=debit
-
-
-
-    if current:
-        final.append(current)
-
-
-    df=pd.DataFrame(final)
-
-    if df.empty:
-        return None
-
-    df=df[df["Amount"]>0]
+    df = df[df["Amount"]>0]
 
     df=df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
 
     return df
 
-
-
-# ---------------- TEXT BACKUP ----------------
-def parse_text(pdf):
-    data=[]
-
-    for page in pdf.pages:
-        txt=page.extract_text()
-        if not txt:
-            continue
-
-        for line in txt.split("\n"):
-
-            amt_match=re.search(r"\d+\.\d{2}", line)
-            if not amt_match: 
-                continue
-
-            amt=clean_amt(amt_match.group())
-            if amt==0:
-                continue
-
-            data.append({
-                "Date":"N/A",
-                "Description":line.strip(),
-                "Amount":amt
-            })
-
-    if not data:
-        return None
-
-    df=pd.DataFrame(data)
-    df=df[df["Amount"]>0]
-    return df
-
-
-
-def extract_data(path):
-    with pdfplumber.open(path) as pdf:
-
-        df=parse_table(pdf)
-
-        if df is None or df.empty:
-            df=parse_text(pdf)
-
-        return df
 
 
 
@@ -237,10 +140,8 @@ def analyze():
             path=tmp.name
 
         df=extract_data(path)
-        os.unlink(path)
 
-        if df is None or df.empty:
-            return "❌ Unsupported / unreadable format"
+        os.unlink(path)
 
         df["AI Category"]=df["Description"].apply(detect_category)
 
