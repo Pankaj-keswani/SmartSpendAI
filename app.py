@@ -14,7 +14,7 @@ BANK_NOISE = [
 ]
 
 
-# ------------- CATEGORY ENGINE ----------------
+# ---------------- CATEGORY ENGINE ----------------
 def detect_category(text):
     raw = str(text).lower()
 
@@ -61,7 +61,7 @@ def detect_category(text):
 
 
 
-# ------------- AMOUNT CLEANER ----------------
+# ---------------- AMOUNT CLEANER ----------------
 def clean_amt(v):
     if not v or str(v).strip()=="" or str(v).strip()=="-":
         return 0.0
@@ -83,22 +83,33 @@ def clean_amt(v):
 
 
 
-# ------------- TABLE PARSER ----------------
+# ---------------- TABLE PARSER (FULL DESCRIPTION) ----------------
 def parse_table(pdf):
+
     rows=[]
+
     for page in pdf.pages:
-        table = page.extract_table()
+        table = page.extract_table(
+            {
+                "vertical_strategy": "lines",
+                "horizontal_strategy": "lines",
+            }
+        )
+
         if table:
             table = [[str(c) if c else "" for c in r] for r in table]
             rows.extend(table)
 
+
     if not rows:
         return None
+
 
     df = pd.DataFrame(rows)
 
     headers = [str(x).lower() for x in df.iloc[0]]
     df=df[1:].reset_index(drop=True)
+
 
     def find(keys):
         for i,h in enumerate(headers):
@@ -106,48 +117,52 @@ def parse_table(pdf):
                 return i
         return None
 
+
     idx_date = find(["date"])
-    idx_desc = find(["description","narration","details","particular"])
-    idx_debit = find(["debit","withdraw","dr"])
-    idx_credit = find(["credit","cr","deposit"])
+    idx_desc = find(["particular","description","narration","details"])
+    idx_debit = find(["withdraw","debit","dr"])
+    idx_credit = find(["credit","deposit","cr"])
+
 
     final=[]
     current=None
 
+
     for i in range(len(df)):
         row=df.iloc[i]
 
-        date = str(row[idx_date]) if idx_date is not None else ""
-        desc = str(row[idx_desc]) if idx_desc is not None else ""
+        date = str(row[idx_date]).strip() if idx_date is not None else ""
+        desc = str(row[idx_desc]).strip() if idx_desc is not None else ""
         debit = clean_amt(row[idx_debit]) if idx_debit is not None else 0
         credit = clean_amt(row[idx_credit]) if idx_credit is not None else 0
 
 
-        # -------- NEW TXN --------
-        if re.search(r"\d",date):
+        # -------- if this row has valid date --------
+        if re.search(r"\d{2}\s\w{3}\s\d{4}", date) or re.search(r"\d{2}\s\w+\s\d{4}", date):
 
             if current:
                 final.append(current)
 
             current={
                 "Date":date,
-                # 🔥 FULL EXACT DESCRIPTION — NO TRIM
-                "Description":desc.replace("\n"," ").strip(),
+                "Description":desc,
                 "Amount":debit
             }
 
-        # -------- CONTINUATION LINE --------
-        else:
-            if current:
-                if desc.strip():
-                    current["Description"]+=" "+desc.replace("\n"," ").strip()
 
-                if not current["Amount"]:
-                    current["Amount"]=debit
+        else:
+            # continuation description
+            if current and desc:
+                current["Description"] += " " + desc
+
+            if current and not current["Amount"]:
+                current["Amount"]=debit
+
 
 
     if current:
         final.append(current)
+
 
     df=pd.DataFrame(final)
 
@@ -155,18 +170,21 @@ def parse_table(pdf):
         return None
 
     df=df[df["Amount"]>0]
+
     df=df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
 
     return df
 
 
 
-# -------- TEXT BACKUP PARSER --------
+# ---------------- TEXT BACKUP ----------------
 def parse_text(pdf):
     data=[]
+
     for page in pdf.pages:
         txt=page.extract_text()
-        if not txt: continue
+        if not txt:
+            continue
 
         for line in txt.split("\n"):
 
@@ -180,7 +198,6 @@ def parse_text(pdf):
 
             data.append({
                 "Date":"N/A",
-                # 🔥 NO TRUNCATE HERE ALSO
                 "Description":line.strip(),
                 "Amount":amt
             })
@@ -190,7 +207,6 @@ def parse_text(pdf):
 
     df=pd.DataFrame(data)
     df=df[df["Amount"]>0]
-    df=df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
     return df
 
 
