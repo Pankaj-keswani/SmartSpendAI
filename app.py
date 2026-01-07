@@ -14,7 +14,6 @@ BANK_NOISE = [
 ]
 
 
-# ------------- CATEGORY ENGINE ----------------
 def detect_category(text):
     raw = str(text).lower()
 
@@ -23,45 +22,25 @@ def detect_category(text):
 
     raw = re.sub(r"[^a-zA-Z ]","",raw).replace(" ","")
 
-    replace_map = {  
-        "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt","meesho","me eesho","m essho","m e e s h o"],  
-        "swiggy":["swiggy","swiggylimited","instamart"],  
-        "myntra":["myntra"],  
-        "jiomart":["jiomart"],  
-        "ajio":["ajio"],  
-        "bigbasket":["bigbasket","dealshare","deal share","de alshare"],  
-        "medical":["medical","pharmacy","chemist"],  
-        "kirana":["kirana","mart","store"],  
-        "uber":["uber"],  
-        "ola":["ola"],  
-        "zomato":["zomato","eternal","blinkit","b linkit"],  
-        "recharge":["recharge","billdesk"]  
-    }  
+    mp = {
+        "Shopping":["flipkart","myntra","ajio","meesho","jiomart"],
+        "Food":["swiggy","zomato","blinkit"],
+        "Grocery":["bigbasket","mart","store","kirana"],
+        "Healthcare":["medical","pharmacy","chemist"],
+        "Travel":["uber","ola"],
+        "Bills":["recharge","billdesk","bill"]
+    }
 
-    for cat,keys in replace_map.items():
-        for k in keys:
-            if k in raw:
-                if cat in ["swiggy","zomato","blinkit"]:
-                    return "Food"
-                if cat in ["flipkart","myntra","ajio","jiomart","meesho"]:
-                    return "Shopping"
-                if cat in ["kirana","bigbasket","mart","store"]:
-                    return "Grocery"
-                if cat in ["medical","pharmacy"]:
-                    return "Healthcare"
-                if cat in ["uber","ola"]:
-                    return "Travel"
-                if cat=="recharge":
-                    return "Bills"
+    for k,v in mp.items():
+        for w in v:
+            if w in raw:
+                return k
 
-    if "upi" in str(text).lower():
-        return "Money Transfer"
-
+    if "upi" in str(text).lower(): return "Money Transfer"
     return "Others"
 
 
 
-# ------------- AMOUNT CLEANER ----------------
 def clean_amt(v):
     if not v or str(v).strip()=="" or str(v).strip()=="-":
         return 0.0
@@ -71,9 +50,11 @@ def clean_amt(v):
     try:
         num = float(v)
 
+        # prevent UPI IDs
         if len(v.replace(".",""))>=10:
             return 0.0
 
+        # prevent unrealistic amounts
         if num>9999999:
             return 0.0
 
@@ -83,7 +64,7 @@ def clean_amt(v):
 
 
 
-# ------------- TABLE PARSER ----------------
+# ⭐ MODE 1 → TABLE PARSER
 def parse_table(pdf):
     rows=[]
     for page in pdf.pages:
@@ -96,7 +77,6 @@ def parse_table(pdf):
         return None
 
     df = pd.DataFrame(rows)
-
     headers = [str(x).lower() for x in df.iloc[0]]
     df=df[1:].reset_index(drop=True)
 
@@ -122,32 +102,22 @@ def parse_table(pdf):
         debit = clean_amt(row[idx_debit]) if idx_debit is not None else 0
         credit = clean_amt(row[idx_credit]) if idx_credit is not None else 0
 
-
-        # -------- NEW TXN --------
+        # NEW ENTRY
         if re.search(r"\d",date):
-
-            if current:
-                final.append(current)
+            if current: final.append(current)
 
             current={
                 "Date":date,
-                # 🔥 FULL EXACT DESCRIPTION — NO TRIM
-                "Description":desc.replace("\n"," ").strip(),
-                "Amount":debit
+                "Description":desc.replace("\n"," "),
+                "Amount":debit  # debit only
             }
-
-        # -------- CONTINUATION LINE --------
         else:
             if current:
-                if desc.strip():
-                    current["Description"]+=" "+desc.replace("\n"," ").strip()
-
+                current["Description"]+=" "+desc
                 if not current["Amount"]:
                     current["Amount"]=debit
 
-
-    if current:
-        final.append(current)
+    if current: final.append(current)
 
     df=pd.DataFrame(final)
 
@@ -161,7 +131,7 @@ def parse_table(pdf):
 
 
 
-# -------- TEXT BACKUP PARSER --------
+# ⭐ MODE 2 → TEXT PARSER (backup)
 def parse_text(pdf):
     data=[]
     for page in pdf.pages:
@@ -169,19 +139,19 @@ def parse_text(pdf):
         if not txt: continue
 
         for line in txt.split("\n"):
-
+            # detect amount
             amt_match=re.search(r"\d+\.\d{2}", line)
             if not amt_match: 
                 continue
 
             amt=clean_amt(amt_match.group())
+
             if amt==0:
                 continue
 
             data.append({
                 "Date":"N/A",
-                # 🔥 NO TRUNCATE HERE ALSO
-                "Description":line.strip(),
+                "Description":line[:120],
                 "Amount":amt
             })
 
@@ -195,11 +165,13 @@ def parse_text(pdf):
 
 
 
+
 def extract_data(path):
     with pdfplumber.open(path) as pdf:
 
         df=parse_table(pdf)
 
+        # fallback
         if df is None or df.empty:
             df=parse_text(pdf)
 
