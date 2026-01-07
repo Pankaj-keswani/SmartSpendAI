@@ -14,6 +14,7 @@ BANK_NOISE = [
 ]
 
 
+# ---------------- CATEGORY ENGINE ----------------
 def detect_category(text):
     raw = str(text).lower()
 
@@ -23,40 +24,130 @@ def detect_category(text):
     raw = re.sub(r"[^a-zA-Z ]","",raw).replace(" ","")
 
     replace_map = {  
-        "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt","meesho","me eesho","m essho","m e e s h o"],  
-        "swiggy":["swiggy","swiggylimited","instamart"],  
-        "myntra":["myntra"],  
-        "jiomart":["jiomart"],  
-        "ajio":["ajio"],  
-        "bigbasket":["bigbasket","dealshare","deal share","de alshare"],  
-        "medical":["medical","pharmacy","chemist"],  
-        "kirana":["kirana","mart","store"],  
-        "uber":["uber"],  
-        "ola":["ola"],  
-        "zomato":["zomato","eternal","blinkit","b linkit"],  
-        "recharge":["recharge","billdesk"]  
+
+        # 🍔 FOOD
+        "swiggy":["swiggy","swiggylimited","instamart"],
+        "zomato":["zomato","zomatoltd"],
+        "blinkit":["blinkit"],
+        "dominos":["dominos","dominospizza"],
+        "kfc":["kfc"],
+        "pizza":["pizzahut"],
+        "faasos":["faasos"],
+        "behrouz":["behrouz"],
+        "ovenstory":["ovenstory"],
+        "freshmenu":["freshmenu"],
+        "eatfit":["eatfit"],
+
+
+        # 🛍 SHOPPING
+        "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt","meesho","me eesho","m essho","m e e s h o"],
+        "amazon":["amazon","amzn"],
+        "myntra":["myntra"],
+        "ajio":["ajio"],
+        "jiomart":["jiomart"],
+        "nykaa":["nykaa"],
+        "tatacliq":["tatacliq","cliq"],
+        "boat":["boat"],
+        "noise":["noise"],
+        "beardo":["beardo"],
+        "mamaearth":["mamaearth"],
+        "sugar":["sugarcosmetics"],
+
+
+        # 🧃 GROCERY
+        "bigbasket":["bigbasket"],
+        "dmart":["dmart"],
+        "reliancefresh":["reliancefresh"],
+        "more":["morestore"],
+        "supermarket":["supermarket","mart","store"],
+
+
+        # 💊 HEALTHCARE
+        "1mg":["1mg","tatamg","tat 1mg","tata1mg"],
+        "netmeds":["netmeds"],
+        "apollo":["apollo"],
+        "pharmacy":["pharmacy","chemist","medical"],
+
+
+        # 🚖 TRAVEL
+        "uber":["uber"],
+        "ola":["ola"],
+        "rapido":["rapido"],
+        "irctc":["irctc"],
+        "redbus":["redbus"],
+
+
+        # 📱 WALLET / RECHARGE
+        "paytm":["paytm"],
+        "phonepe":["phonepe"],
+        "gpay":["gpay","googlepay"],
+        "recharge":["recharge","billdesk","bill"],
+
+
+        # 🎬 SUBSCRIPTIONS
+        "netflix":["netflix"],
+        "prime":["primevideo","amazonprime"],
+        "hotstar":["hotstar","disneyhotstar"],
+        "spotify":["spotify"],
+        "youtube":["youtube","youtubepremium"],
+
+
+        # 🎓 EDTECH
+        "unacademy":["unacademy"],
+        "udemy":["udemy"],
+        "coursera":["coursera"],
+
+
+        # 💻 TECH STORES
+        "apple":["apple"],
+        "microsoft":["microsoft"],
+        "dell":["dellstore"],
+
     }  
+
 
     for cat,keys in replace_map.items():
         for k in keys:
             if k in raw:
-                if cat in ["swiggy","zomato","blinkit"]:
+
+                # FOOD
+                if cat in ["swiggy","zomato","blinkit","dominos","kfc","pizza","faasos","behrouz","ovenstory","freshmenu","eatfit"]:
                     return "Food"
-                if cat in ["flipkart","myntra","ajio","jiomart","meesho"]:
+
+                # SHOPPING
+                if cat in ["flipkart","amazon","myntra","ajio","nykaa","tatacliq","boat","noise","beardo","mamaearth","sugar"]:
                     return "Shopping"
-                if cat in ["kirana","bigbasket","mart","store"]:
+
+                # GROCERY
+                if cat in ["bigbasket","dmart","reliancefresh","more","supermarket","jiomart"]:
                     return "Grocery"
-                if cat in ["medical","pharmacy"]:
+
+                # HEALTHCARE
+                if cat in ["1mg","netmeds","apollo","pharmacy"]:
                     return "Healthcare"
-                if cat in ["uber","ola"]:
+
+                # TRAVEL
+                if cat in ["uber","ola","rapido","irctc","redbus"]:
                     return "Travel"
-                if cat=="recharge":
+
+                # BILLS
+                if cat in ["recharge","paytm","phonepe","gpay"]:
                     return "Bills"
+
+                # SUBSCRIPTIONS
+                if cat in ["netflix","prime","hotstar","spotify","youtube"]:
+                    return "Subscriptions"
+
+                # EDUCATION
+                if cat in ["unacademy","udemy","coursera"]:
+                    return "Education"
+
 
     if "upi" in str(text).lower():
         return "Money Transfer"
 
     return "Others"
+
 
 
 
@@ -70,6 +161,7 @@ def clean_amt(v):
         return num
     except:
         return 0.0
+
 
 
 
@@ -88,12 +180,11 @@ def extract_data(path):
 
             for line in lines:
 
-                # date format like: 04 Jan 2026
                 date_match = re.match(r"(\d{2}\s\w+\s\d{4})", line)
 
                 amt_match = re.findall(r"\d+\.\d{2}", line)
 
-                # -------- NEW TRANSACTION --------
+
                 if date_match and amt_match:
 
                     if current:
@@ -105,7 +196,6 @@ def extract_data(path):
                         "Amount": clean_amt(amt_match[0])
                     }
 
-                # -------- CONTINUATION LINES --------
                 else:
                     if current:
                         current["Description"] += " " + line
