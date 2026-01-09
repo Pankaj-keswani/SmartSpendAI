@@ -23,20 +23,90 @@ def detect_category(text):
     raw = re.sub(r"[^a-zA-Z ]","",raw).replace(" ","")
 
     mp = {
-        "Shopping":["flipkart","myntra","ajio","meesho","jiomart"],
-        "Food":["swiggy","zomato","blinkit"],
-        "Grocery":["bigbasket","mart","store","kirana"],
-        "Healthcare":["medical","pharmacy","chemist"],
-        "Travel":["uber","ola"],
-        "Bills":["recharge","billdesk","bill"]
+
+        # 🛍 SHOPPING / E-COMMERCE
+        "Shopping":[
+            "flipkart","flpkart","flpkrt","flipkrt","pkart",
+            "amazon","amzn",
+            "myntra","ajio","meesho","jiomart",
+            "tatacliq","cliq",
+            "nykaa","snapdeal","shopclues",
+            "lenskart","firstcry"
+        ],
+
+        # 🍔 FOOD / DELIVERY
+        "Food":[
+            "swiggy","swiggylimited","zomato","eternal",
+            "blinkit","instamart",
+            "dominos","pizzahut","kfc","mcdonald",
+            "faasos","behrouz","ovenstory",
+            "eatfit","freshmenu","box8",
+            "restaurant","hotel","dhaba","cafe"
+        ],
+
+        # 🧺 GROCERY / DAILY NEEDS
+        "Grocery":[
+            "bigbasket","bbnow",
+            "dmart","reliancefresh",
+            "jiomart","morestore",
+            "kirana","generalstore",
+            "mart","store","supermarket","provision"
+        ],
+
+        # 💊 HEALTHCARE
+        "Healthcare":[
+            "medical","pharmacy","chemist",
+            "apollo","apollopharmacy",
+            "netmeds","tata1mg","1mg",
+            "clinic","hospital","diagnostic","lab"
+        ],
+
+        # 🚖 TRAVEL / TRANSPORT
+        "Travel":[
+            "uber","ola","rapido",
+            "irctc","redbus",
+            "makemytrip","mmt","yatra",
+            "goibibo","ixigo",
+            "petrol","diesel","fuel"
+        ],
+
+        # 💡 BILLS / UTILITIES
+        "Bills":[
+            "recharge","billdesk","bill",
+            "electricity","water","gas",
+            "mobile","broadband","wifi",
+            "airtel","jio","vi","vodafone","idea",
+            "bsnl","tneb","mseb"
+        ],
+
+        # 🎬 SUBSCRIPTIONS / OTT
+        "Subscriptions":[
+            "netflix","primevideo","amazonprime",
+            "hotstar","disneyhotstar",
+            "spotify","youtube","youtubepremium",
+            "zee5","sonyliv","gaana","wynk"
+        ],
+
+        # 🎓 EDUCATION
+        "Education":[
+            "unacademy","byjus","vedantu",
+            "udemy","coursera","edx",
+            "skillshare","whitehatjr"
+        ],
+
+        # 💼 WALLET / FINTECH
+        "Wallet":[
+            "paytm","phonepe","googlepay","gpay",
+            "mobikwik","freecharge","amazonpay"
+        ]
     }
 
-    for k,v in mp.items():
-        for w in v:
-            if w in raw:
-                return k
+    for category, keywords in mp.items():
+        for k in keywords:
+            if k in raw:
+                return category
 
-    if "upi" in str(text).lower(): 
+    if "upi" in str(text).lower():
         return "Money Transfer"
 
     return "Others"
@@ -60,7 +130,7 @@ def clean_amt(v):
         return 0.0
 
 
-# ⭐ MODE 1 → TABLE PARSER (UNCHANGED LOGIC)
+# ⭐ MODE 1 → TABLE PARSER
 def parse_table(pdf):
     rows=[]
     for page in pdf.pages:
@@ -96,7 +166,7 @@ def parse_table(pdf):
         desc = str(row[idx_desc]) if idx_desc is not None else ""
         debit = clean_amt(row[idx_debit]) if idx_debit is not None else 0
 
-        if re.search(r"\d{2}|\d{4}", date):
+        if re.search(r"\d",date):
             if current:
                 final.append(current)
 
@@ -115,7 +185,6 @@ def parse_table(pdf):
         final.append(current)
 
     df=pd.DataFrame(final)
-
     if df.empty:
         return None
 
@@ -125,14 +194,15 @@ def parse_table(pdf):
     return df
 
 
-# ⭐ MODE 2 → TEXT PARSER (FIXED)
+# ⭐ MODE 2 → TEXT PARSER
 def parse_text(pdf):
     data=[]
     current=None
 
     IGNORE = [
-        "auto generated","does not require","customer care",
-        "call us","website","email","address","branch","page"
+        "auto generated","does not require",
+        "customer care","call us","website",
+        "email","address","branch","page"
     ]
 
     for page in pdf.pages:
@@ -142,7 +212,6 @@ def parse_text(pdf):
 
         for line in txt.split("\n"):
             l=line.lower().strip()
-
             if any(x in l for x in IGNORE):
                 continue
 
@@ -158,7 +227,6 @@ def parse_text(pdf):
                     "Description":line.strip(),
                     "Amount":amt
                 }
-
             else:
                 if current and line.strip():
                     current["Description"] += " " + line.strip()
@@ -185,7 +253,6 @@ def extract_data(path):
         return df
 
 
-# ---------------- ROUTES ----------------
 @app.route("/")
 def index():
     return render_template("index.html")
