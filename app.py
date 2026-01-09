@@ -68,14 +68,9 @@ def detect_category(text):
         "Bills": [
             "recharge","billdesk","electricity","waterbill",
             "gasbill","mobilebill","broadband","fiber",
-            "airtel","jio","vi","vodafone","bsnl"
+            "airtel","jio","vodafone","bsnl"
         ],
 
-        # 💳 WALLETS / PAYMENT APPS
-        "Wallet": [
-            "paytm","phonepe","gpay","googlepay","amazonpay",
-            "mobikwik","freecharge"
-        ],
 
         # 🎬 ENTERTAINMENT / SUBSCRIPTIONS
         "Entertainment": [
