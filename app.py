@@ -1,63 +1,65 @@
-import os
-import re
-import tempfile
+import os, re, tempfile
 import pandas as pd
 import pdfplumber
 from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
+# ---------------- CLEAN DESCRIPTION ----------------
+def build_description(raw):
+    raw = raw.upper()
+
+    # UPI case
+    if "UPI/" in raw:
+        parts = raw.split("/")
+        for p in parts:
+            if "@" in p:
+                return f"UPI Payment ({p})"
+        return "UPI Payment"
+
+    # IMPS / NEFT
+    if "IMPS" in raw:
+        return "IMPS Transfer"
+    if "NEFT" in raw:
+        return "NEFT Transfer"
+
+    # Kirana / Medical
+    if "KIRANA" in raw:
+        return "Kirana Store Purchase"
+    if "MEDICAL" in raw:
+        return "Medical Expense"
+
+    return raw[:60]  # fallback safe
+
+
 # ---------------- CATEGORY ENGINE ----------------
-BANK_NOISE = [
-    "upi","transfer","hdfc","sbin","icici","idfc",
-    "utr","payment","paid","via","yesb","axis",
-    "from","to","ref","upiint","upiintnet"
-]
-
-def detect_category(text):
-    raw = str(text).lower()
-    for b in BANK_NOISE:
-        raw = raw.replace(b, " ")
-    raw = re.sub(r"[^a-zA-Z ]", "", raw).replace(" ", "")
-
-    replace_map = {
-        "Food": ["swiggy","zomato","blinkit","instamart","dominos","pizza","kfc","faasos"],
-        "Shopping": ["flipkart","amazon","myntra","ajio","meesho","jiomart"],
-        "Grocery": ["bigbasket","dmart","kirana","generalstore","store","mart"],
-        "Healthcare": ["medical","pharmacy","chemist","apollo","1mg"],
-        "Travel": ["uber","ola","rapido","irctc"],
-        "Bills": ["recharge","billdesk","electricity","gas","water","mobile"]
-    }
-
-    for cat, keys in replace_map.items():
-        for k in keys:
-            if k in raw:
-                return cat
-
-    if "upi" in str(text).lower():
+def detect_category(desc):
+    d = desc.lower()
+    if any(x in d for x in ["swiggy","zomato","blinkit","instamart"]):
+        return "Food"
+    if any(x in d for x in ["amazon","flipkart","myntra","ajio"]):
+        return "Shopping"
+    if any(x in d for x in ["kirana","store","mart"]):
+        return "Grocery"
+    if any(x in d for x in ["medical","pharmacy","hospital"]):
+        return "Healthcare"
+    if any(x in d for x in ["uber","ola","rapido"]):
+        return "Travel"
+    if "upi" in d:
         return "Money Transfer"
-
     return "Others"
 
 
-# ---------------- AMOUNT CLEANER ----------------
-def clean_amt(val):
-    val = re.sub(r"[^\d.]", "", str(val))
+def clean_amt(v):
     try:
-        return float(val)
+        return float(re.sub(r"[^\d.]", "", v))
     except:
         return 0.0
 
 
-# ---------------- PERFECT TEXT PARSER ----------------
+# ---------------- PDF PARSER ----------------
 def extract_data(path):
-    transactions = []
-
-    IGNORE = [
-        "auto generated", "does not require signature",
-        "customer care", "call us", "website",
-        "email", "address", "branch", "page"
-    ]
+    rows = []
 
     with pdfplumber.open(path) as pdf:
         for page in pdf.pages:
@@ -66,44 +68,27 @@ def extract_data(path):
                 continue
 
             for line in text.split("\n"):
-                l = line.lower().strip()
-                if any(x in l for x in IGNORE):
+                if not re.match(r"\d{2}\s\w+\s\d{4}", line):
                     continue
 
-                # DATE at start
-                date_match = re.match(r"^(\d{2}\s\w+\s\d{4})", line)
-                if not date_match:
+                amts = re.findall(r"\d+\.\d{2}", line)
+                if len(amts) < 2:
                     continue
 
-                # Find all amounts in line
-                amounts = re.findall(r"\d+\.\d{2}", line)
-                if len(amounts) < 2:
+                debit = clean_amt(amts[-2])
+                if debit <= 0:
                     continue
 
-                # Statement format:
-                # Date | Particulars | Withdrawal | Deposit | Balance
-                # Debit = FIRST non-zero amount from right (except balance)
+                date = re.match(r"(\d{2}\s\w+\s\d{4})", line).group(1)
+                desc = build_description(line)
 
-                balance = amounts[-1]
-                debit = amounts[-2]
-
-                debit_amt = clean_amt(debit)
-                if debit_amt <= 0:
-                    continue
-
-                # Extract PARTICULARS only
-                # Remove date & trailing amounts
-                desc = re.sub(r"\d{2}\s\w+\s\d{4}", "", line)
-                desc = re.sub(r"\d+\.\d{2}", "", desc)
-                desc = re.sub(r"\s{2,}", " ", desc).strip()
-
-                transactions.append({
-                    "Date": date_match.group(1),
+                rows.append({
+                    "Date": date,
                     "Description": desc,
-                    "Amount": debit_amt
+                    "Amount": debit
                 })
 
-    return pd.DataFrame(transactions)
+    return pd.DataFrame(rows)
 
 
 # ---------------- ROUTES ----------------
@@ -113,42 +98,35 @@ def index():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    try:
-        file = request.files["file"]
+    file = request.files["file"]
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            file.save(tmp.name)
-            path = tmp.name
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        file.save(tmp.name)
+        path = tmp.name
 
-        df = extract_data(path)
-        os.unlink(path)
+    df = extract_data(path)
+    os.unlink(path)
 
-        if df.empty:
-            return "❌ No valid transactions found"
+    df["AI Category"] = df["Description"].apply(detect_category)
 
-        df["AI Category"] = df["Description"].apply(detect_category)
+    total = df["Amount"].sum()
+    tx = len(df)
 
-        total = df["Amount"].sum()
-        tx = len(df)
+    cat = df.groupby("AI Category")["Amount"].sum().reset_index()
+    top = cat.loc[cat["Amount"].idxmax()]["AI Category"]
 
-        cat = df.groupby("AI Category")["Amount"].sum().reset_index()
-        top = cat.loc[cat["Amount"].idxmax()]["AI Category"]
-
-        return render_template(
-            "dashboard.html",
-            rows=df.rename(columns={
-                "Date": "Transaction Date",
-                "Description": "Description/Narration"
-            }).to_dict("records"),
-            total_spend=round(total, 2),
-            total_transactions=tx,
-            top_category=top,
-            category_summary=cat.values.tolist()
-        )
-
-    except Exception as e:
-        return f"❌ Error: {str(e)}"
+    return render_template(
+        "dashboard.html",
+        rows=df.rename(columns={
+            "Date": "Transaction Date",
+            "Description": "Description/Narration"
+        }).to_dict("records"),
+        total_spend=round(total,2),
+        total_transactions=tx,
+        top_category=top,
+        category_summary=cat.values.tolist()
+    )
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(port=5000)
