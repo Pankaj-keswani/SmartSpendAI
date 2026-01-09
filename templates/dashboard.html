@@ -14,50 +14,37 @@ body{
  background:#020617;
  color:white;
  font-family:'Poppins',sans-serif;
+ overflow-x:hidden;
 }
 
-/* Background */
-.bg{
+/* Animated BG */
+body::before{
+ content:"";
  position:fixed;inset:0;
- background:
- radial-gradient(circle at 25% 25%, rgba(59,130,246,.4), transparent 45%),
- radial-gradient(circle at 75% 30%, rgba(168,85,247,.45), transparent 45%);
- filter:blur(60px);
- z-index:-2;
+ background:linear-gradient(120deg,#020617,#1e293b,#020617);
+ animation:bgshift 20s infinite alternate;
+ z-index:-3;
+}
+@keyframes bgshift{
+ to{filter:hue-rotate(50deg)}
+}
+
+/* Mouse Glow */
+.light{
+ position:fixed;
+ width:280px;height:280px;
+ background:radial-gradient(circle,rgba(96,165,250,.25),transparent 65%);
+ pointer-events:none;
+ mix-blend-mode:screen;
+ z-index:-1;
 }
 
 /* Navbar */
 nav{
  position:sticky;top:0;
- display:flex;
- justify-content:space-between;
  padding:18px 22px;
- background:rgba(2,6,23,.8);
- backdrop-filter:blur(18px);
- z-index:10;
-}
-
-/* Container */
-.container{padding:20px}
-
-/* Title */
-.title{
- font-size:clamp(22px,5vw,34px);
- font-weight:900;
- margin-bottom:14px;
- background:linear-gradient(90deg,#60a5fa,#a78bfa);
- -webkit-background-clip:text;
- color:transparent;
-}
-
-/* Insight */
-.insight{
- background:rgba(15,23,42,.9);
- border-radius:16px;
- padding:14px;
- font-size:13px;
- margin-bottom:18px;
- border-left:4px solid #60a5fa;
+ background:rgba(2,6,23,.75);
+ backdrop-filter:blur(20px);
 }
 
 /* Cards */
@@ -65,54 +52,31 @@ nav{
  display:grid;
  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
  gap:16px;
+ padding:20px;
 }
 .card{
- background:rgba(15,23,42,.9);
+ background:rgba(15,23,42,.85);
  padding:20px;
  border-radius:18px;
- box-shadow:0 0 40px rgba(99,102,241,.25);
+ box-shadow:0 0 35px rgba(99,102,241,.3);
+ transition:.3s;
 }
-
-/* Filters */
-.filters{
- display:flex;
- gap:10px;
- margin:18px 0;
- flex-wrap:wrap;
-}
-.filter{
- padding:8px 14px;
- border-radius:999px;
- font-size:12px;
- background:#0f172a;
- cursor:pointer;
- border:1px solid rgba(255,255,255,.08);
-}
-.filter.active{background:#6366f1}
+.card:hover{transform:translateY(-5px) scale(1.02)}
 
 /* Table */
-.big-card{
- margin-top:20px;
- background:rgba(15,23,42,.95);
+.big{
+ margin:20px;
+ background:rgba(15,23,42,.9);
  border-radius:18px;
  padding:16px;
  overflow-x:auto;
 }
-table{
- width:100%;
- min-width:720px;
- border-collapse:collapse;
-}
+table{width:100%;min-width:700px;border-collapse:collapse}
 th,td{padding:12px;font-size:13px}
 th{background:#0f1a2f}
-tr:nth-child(even){background:#0b1225}
 
 /* Chips */
-.chip{
- padding:6px 10px;
- border-radius:10px;
- font-size:12px;
-}
+.chip{padding:6px 10px;border-radius:10px;font-size:12px}
 .shopping{background:#2563EB}
 .food{background:#16A34A}
 .transfer{background:#7C3AED}
@@ -123,32 +87,14 @@ tr:nth-child(even){background:#0b1225}
 
 <body>
 
-<div class="bg"></div>
+<div class="light" id="light"></div>
 
-<nav>
- <div>💸 SmartSpend <span style="color:#60a5fa">AI</span></div>
- <div>Dashboard</div>
-</nav>
-
-<div class="container">
-
-<div class="title">Expense Intelligence</div>
-
-<div class="insight">
- 💡 You made <b>{{ total_transactions }}</b> transactions with total spend of <b>₹ {{ total_spend }}</b>.
-</div>
+<nav>💸 SmartSpend <span style="color:#60a5fa">AI</span></nav>
 
 <div class="cards">
- <div class="card"><b>Total Spend</b><br><span id="spend" style="font-size:26px">0</span></div>
- <div class="card"><b>Total Transactions</b><br><span id="tx" style="font-size:26px">0</span></div>
- <div class="card"><b>Top Category</b><br><span style="font-size:20px">{{ top_category }}</span></div>
-</div>
-
-<div class="filters">
- <div class="filter active">All</div>
- <div class="filter">Food</div>
- <div class="filter">Shopping</div>
- <div class="filter">Money Transfer</div>
+ <div class="card">💰 Total Spend<br><b>₹ {{ total_spend }}</b></div>
+ <div class="card">📄 Transactions<br><b>{{ total_transactions }}</b></div>
+ <div class="card">🏆 Top Category<br><b>{{ top_category }}</b></div>
 </div>
 
 <div class="cards">
@@ -156,7 +102,7 @@ tr:nth-child(even){background:#0b1225}
  <div class="card"><canvas id="barChart"></canvas></div>
 </div>
 
-<div class="big-card">
+<div class="big">
 <table>
 <tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr>
 {% for t in rows %}
@@ -178,20 +124,12 @@ tr:nth-child(even){background:#0b1225}
 </table>
 </div>
 
-</div>
-
 <script>
-function animate(id,val){
- let c=0;
- const el=document.getElementById(id);
- const t=setInterval(()=>{
-  c+=Math.ceil(val/40);
-  if(c>=val){c=val;clearInterval(t)}
-  el.innerText=(id==="spend"?"₹ ":"")+c;
- },30);
-}
-animate("spend",{{ total_spend|int }});
-animate("tx",{{ total_transactions }});
+document.addEventListener("mousemove",e=>{
+ const l=document.getElementById("light");
+ l.style.left=e.pageX-140+"px";
+ l.style.top=e.pageY-140+"px";
+});
 
 const labels=[{% for c in category_summary %}"{{ c[0] }}",{% endfor %}];
 const values=[{% for c in category_summary %}{{ c[1] }},{% endfor %}];
