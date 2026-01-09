@@ -13,7 +13,6 @@ BANK_NOISE = [
     "from","to","ref","upiint","upiintnet"
 ]
 
-
 # ---------------- CATEGORY ENGINE ----------------
 def detect_category(text):
     raw = str(text).lower()
@@ -24,8 +23,6 @@ def detect_category(text):
     raw = re.sub(r"[^a-zA-Z ]","",raw).replace(" ","")
 
     replace_map = {  
-
-        # 🍔 FOOD
         "swiggy":["swiggy","swiggylimited","instamart"],
         "zomato":["zomato","zomatoltd"],
         "blinkit":["blinkit"],
@@ -38,110 +35,42 @@ def detect_category(text):
         "freshmenu":["freshmenu"],
         "eatfit":["eatfit"],
 
-
-        # 🛍 SHOPPING
-        "flipkart":["flipkart","flpkart","flpkrt","flpkrtpayment","flpkartpayment","flipkrt","meesho","me eesho","m essho","m e e s h o"],
+        "flipkart":["flipkart","flpkart","flpkrt","flipkrt","meesho"],
         "amazon":["amazon","amzn"],
         "myntra":["myntra"],
         "ajio":["ajio"],
         "jiomart":["jiomart"],
-        "nykaa":["nykaa"],
-        "tatacliq":["tatacliq","cliq"],
-        "boat":["boat"],
-        "noise":["noise"],
-        "beardo":["beardo"],
-        "mamaearth":["mamaearth"],
-        "sugar":["sugarcosmetics"],
 
-
-        # 🧃 GROCERY
         "bigbasket":["bigbasket"],
         "dmart":["dmart"],
         "reliancefresh":["reliancefresh"],
-        "more":["morestore"],
-        "supermarket":["supermarket","mart","store"],
+        "store":["mart","store"],
 
-
-        # 💊 HEALTHCARE
-        "1mg":["1mg","tatamg","tat 1mg","tata1mg"],
-        "netmeds":["netmeds"],
-        "apollo":["apollo"],
-        "pharmacy":["pharmacy","chemist","medical"],
-
-
-        # 🚖 TRAVEL
+        "medical":["medical","pharmacy","chemist"],
         "uber":["uber"],
         "ola":["ola"],
-        "rapido":["rapido"],
-        "irctc":["irctc"],
-        "redbus":["redbus"],
 
-
-        # 📱 WALLET / RECHARGE
+        "recharge":["recharge","billdesk","bill"],
         "paytm":["paytm"],
         "phonepe":["phonepe"],
         "gpay":["gpay","googlepay"],
-        "recharge":["recharge","billdesk","bill"],
-
-
-        # 🎬 SUBSCRIPTIONS
-        "netflix":["netflix"],
-        "prime":["primevideo","amazonprime"],
-        "hotstar":["hotstar","disneyhotstar"],
-        "spotify":["spotify"],
-        "youtube":["youtube","youtubepremium"],
-
-
-        # 🎓 EDTECH
-        "unacademy":["unacademy"],
-        "udemy":["udemy"],
-        "coursera":["coursera"],
-
-
-        # 💻 TECH STORES
-        "apple":["apple"],
-        "microsoft":["microsoft"],
-        "dell":["dellstore"],
-
-    }  
-
+    }
 
     for cat,keys in replace_map.items():
         for k in keys:
             if k in raw:
-
-                # FOOD
                 if cat in ["swiggy","zomato","blinkit","dominos","kfc","pizza","faasos","behrouz","ovenstory","freshmenu","eatfit"]:
                     return "Food"
-
-                # SHOPPING
-                if cat in ["flipkart","amazon","myntra","ajio","nykaa","tatacliq","boat","noise","beardo","mamaearth","sugar"]:
+                if cat in ["flipkart","amazon","myntra","ajio","jiomart"]:
                     return "Shopping"
-
-                # GROCERY
-                if cat in ["bigbasket","dmart","reliancefresh","more","supermarket","jiomart"]:
+                if cat in ["bigbasket","dmart","reliancefresh","store"]:
                     return "Grocery"
-
-                # HEALTHCARE
-                if cat in ["1mg","netmeds","apollo","pharmacy"]:
+                if cat in ["medical"]:
                     return "Healthcare"
-
-                # TRAVEL
-                if cat in ["uber","ola","rapido","irctc","redbus"]:
+                if cat in ["uber","ola"]:
                     return "Travel"
-
-                # BILLS
                 if cat in ["recharge","paytm","phonepe","gpay"]:
                     return "Bills"
-
-                # SUBSCRIPTIONS
-                if cat in ["netflix","prime","hotstar","spotify","youtube"]:
-                    return "Subscriptions"
-
-                # EDUCATION
-                if cat in ["unacademy","udemy","coursera"]:
-                    return "Education"
-
 
     if "upi" in str(text).lower():
         return "Money Transfer"
@@ -149,71 +78,85 @@ def detect_category(text):
     return "Others"
 
 
-
-
 def clean_amt(v):
     v = re.sub(r"[^\d.]", "", str(v))
-
     try:
         num = float(v)
-        if len(v.replace(".",""))>=10: return 0.0
-        if num>9999999: return 0.0
+        if len(v.replace(".","")) >= 10: return 0.0
+        if num > 9999999: return 0.0
         return num
     except:
         return 0.0
 
 
-
-
-# ⭐ TEXT PARSER — FULL DESCRIPTION ⭐
+# ---------------- SMART TEXT PARSER ----------------
 def extract_data(path):
 
-    tx = []
+    transactions = []
+    current = None
+
+    IGNORE_LINES = [
+        "auto generated",
+        "does not require signature",
+        "please inform",
+        "call us",
+        "customer care",
+        "website",
+        "email",
+        "address",
+        "page",
+        "indusind",
+        "branch",
+        "rajasthan",
+        "india",
+        "toll free"
+    ]
 
     with pdfplumber.open(path) as pdf:
-
         for page in pdf.pages:
+            text = page.extract_text()
+            if not text:
+                continue
 
-            lines = page.extract_text().split("\n")
+            for line in text.split("\n"):
+                l = line.lower().strip()
 
-            current = None
+                # ❌ ignore noise lines
+                if any(x in l for x in IGNORE_LINES):
+                    continue
 
-            for line in lines:
-
+                # detect new transaction line
                 date_match = re.match(r"(\d{2}\s\w+\s\d{4})", line)
-
                 amt_match = re.findall(r"\d+\.\d{2}", line)
 
-
                 if date_match and amt_match:
-
                     if current:
-                        tx.append(current)
+                        transactions.append(current)
 
                     current = {
                         "Date": date_match.group(1),
-                        "Description": line,
+                        "Description": line.strip(),
                         "Amount": clean_amt(amt_match[0])
                     }
 
                 else:
-                    if current:
-                        current["Description"] += " " + line
-
+                    # continuation only if it looks like txn text
+                    if current and (
+                        "upi/" in l or
+                        "imps" in l or
+                        "neft" in l or
+                        "rtgs" in l or
+                        "/" in l
+                    ):
+                        current["Description"] += " " + line.strip()
 
             if current:
-                tx.append(current)
+                transactions.append(current)
+                current = None
 
-
-    df = pd.DataFrame(tx)
-
-    df = df[df["Amount"]>0]
-
-    df=df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
-
+    df = pd.DataFrame(transactions)
+    df = df[df["Amount"] > 0]
     return df
-
-
 
 
 @app.route("/")
@@ -223,28 +166,30 @@ def index():
 @app.route("/analyze", methods=["POST"])
 def analyze():
     try:
-        file=request.files["file"]
+        file = request.files["file"]
 
-        with tempfile.NamedTemporaryFile(delete=False,suffix=".pdf") as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             file.save(tmp.name)
-            path=tmp.name
+            path = tmp.name
 
-        df=extract_data(path)
-
+        df = extract_data(path)
         os.unlink(path)
 
-        df["AI Category"]=df["Description"].apply(detect_category)
+        df["AI Category"] = df["Description"].apply(detect_category)
 
-        total=df["Amount"].sum()
-        tx=len(df)
+        total = df["Amount"].sum()
+        tx = len(df)
 
-        cat=df.groupby("AI Category")["Amount"].sum().reset_index()
-        top=cat.loc[cat["Amount"].idxmax()]["AI Category"]
+        cat = df.groupby("AI Category")["Amount"].sum().reset_index()
+        top = cat.loc[cat["Amount"].idxmax()]["AI Category"]
 
         return render_template(
             "dashboard.html",
-            rows=df.rename(columns={"Date":"Transaction Date","Description":"Description/Narration"}).to_dict("records"),
-            total_spend=round(total,2),
+            rows=df.rename(columns={
+                "Date": "Transaction Date",
+                "Description": "Description/Narration"
+            }).to_dict("records"),
+            total_spend=round(total, 2),
             total_transactions=tx,
             top_category=top,
             category_summary=cat.values.tolist()
@@ -254,6 +199,5 @@ def analyze():
         return f"❌ Error: {str(e)}"
 
 
-
-if __name__=="__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT",5000)))
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
