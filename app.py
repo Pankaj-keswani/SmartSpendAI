@@ -7,70 +7,32 @@ from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
+# ---------------- CATEGORY ENGINE ----------------
 BANK_NOISE = [
     "upi","transfer","hdfc","sbin","icici","idfc",
     "utr","payment","paid","via","yesb","axis",
     "from","to","ref","upiint","upiintnet"
 ]
 
-# ---------------- CATEGORY ENGINE ----------------
 def detect_category(text):
     raw = str(text).lower()
-
     for b in BANK_NOISE:
-        raw = raw.replace(b," ")
+        raw = raw.replace(b, " ")
+    raw = re.sub(r"[^a-zA-Z ]", "", raw).replace(" ", "")
 
-    raw = re.sub(r"[^a-zA-Z ]","",raw).replace(" ","")
-
-    replace_map = {  
-        "swiggy":["swiggy","swiggylimited","instamart"],
-        "zomato":["zomato","zomatoltd"],
-        "blinkit":["blinkit"],
-        "dominos":["dominos","dominospizza"],
-        "kfc":["kfc"],
-        "pizza":["pizzahut"],
-        "faasos":["faasos"],
-        "behrouz":["behrouz"],
-        "ovenstory":["ovenstory"],
-        "freshmenu":["freshmenu"],
-        "eatfit":["eatfit"],
-
-        "flipkart":["flipkart","flpkart","flpkrt","flipkrt","meesho"],
-        "amazon":["amazon","amzn"],
-        "myntra":["myntra"],
-        "ajio":["ajio"],
-        "jiomart":["jiomart"],
-
-        "bigbasket":["bigbasket"],
-        "dmart":["dmart"],
-        "reliancefresh":["reliancefresh"],
-        "store":["mart","store"],
-
-        "medical":["medical","pharmacy","chemist"],
-        "uber":["uber"],
-        "ola":["ola"],
-
-        "recharge":["recharge","billdesk","bill"],
-        "paytm":["paytm"],
-        "phonepe":["phonepe"],
-        "gpay":["gpay","googlepay"],
+    replace_map = {
+        "Food": ["swiggy","zomato","blinkit","instamart","dominos","pizza","kfc","faasos"],
+        "Shopping": ["flipkart","amazon","myntra","ajio","meesho","jiomart"],
+        "Grocery": ["bigbasket","dmart","kirana","generalstore","store","mart"],
+        "Healthcare": ["medical","pharmacy","chemist","apollo","1mg"],
+        "Travel": ["uber","ola","rapido","irctc"],
+        "Bills": ["recharge","billdesk","electricity","gas","water","mobile"]
     }
 
-    for cat,keys in replace_map.items():
+    for cat, keys in replace_map.items():
         for k in keys:
             if k in raw:
-                if cat in ["swiggy","zomato","blinkit","dominos","kfc","pizza","faasos","behrouz","ovenstory","freshmenu","eatfit"]:
-                    return "Food"
-                if cat in ["flipkart","amazon","myntra","ajio","jiomart"]:
-                    return "Shopping"
-                if cat in ["bigbasket","dmart","reliancefresh","store"]:
-                    return "Grocery"
-                if cat in ["medical"]:
-                    return "Healthcare"
-                if cat in ["uber","ola"]:
-                    return "Travel"
-                if cat in ["recharge","paytm","phonepe","gpay"]:
-                    return "Bills"
+                return cat
 
     if "upi" in str(text).lower():
         return "Money Transfer"
@@ -78,38 +40,23 @@ def detect_category(text):
     return "Others"
 
 
-def clean_amt(v):
-    v = re.sub(r"[^\d.]", "", str(v))
+# ---------------- AMOUNT CLEANER ----------------
+def clean_amt(val):
+    val = re.sub(r"[^\d.]", "", str(val))
     try:
-        num = float(v)
-        if len(v.replace(".","")) >= 10: return 0.0
-        if num > 9999999: return 0.0
-        return num
+        return float(val)
     except:
         return 0.0
 
 
-# ---------------- SMART TEXT PARSER ----------------
+# ---------------- PERFECT TEXT PARSER ----------------
 def extract_data(path):
-
     transactions = []
-    current = None
 
-    IGNORE_LINES = [
-        "auto generated",
-        "does not require signature",
-        "please inform",
-        "call us",
-        "customer care",
-        "website",
-        "email",
-        "address",
-        "page",
-        "indusind",
-        "branch",
-        "rajasthan",
-        "india",
-        "toll free"
+    IGNORE = [
+        "auto generated", "does not require signature",
+        "customer care", "call us", "website",
+        "email", "address", "branch", "page"
     ]
 
     with pdfplumber.open(path) as pdf:
@@ -120,45 +67,46 @@ def extract_data(path):
 
             for line in text.split("\n"):
                 l = line.lower().strip()
-
-                # ❌ ignore noise lines
-                if any(x in l for x in IGNORE_LINES):
+                if any(x in l for x in IGNORE):
                     continue
 
-                # detect new transaction line
-                date_match = re.match(r"(\d{2}\s\w+\s\d{4})", line)
-                amt_match = re.findall(r"\d+\.\d{2}", line)
+                # DATE at start
+                date_match = re.match(r"^(\d{2}\s\w+\s\d{4})", line)
+                if not date_match:
+                    continue
 
-                if date_match and amt_match:
-                    if current:
-                        transactions.append(current)
+                # Find all amounts in line
+                amounts = re.findall(r"\d+\.\d{2}", line)
+                if len(amounts) < 2:
+                    continue
 
-                    current = {
-                        "Date": date_match.group(1),
-                        "Description": line.strip(),
-                        "Amount": clean_amt(amt_match[0])
-                    }
+                # Statement format:
+                # Date | Particulars | Withdrawal | Deposit | Balance
+                # Debit = FIRST non-zero amount from right (except balance)
 
-                else:
-                    # continuation only if it looks like txn text
-                    if current and (
-                        "upi/" in l or
-                        "imps" in l or
-                        "neft" in l or
-                        "rtgs" in l or
-                        "/" in l
-                    ):
-                        current["Description"] += " " + line.strip()
+                balance = amounts[-1]
+                debit = amounts[-2]
 
-            if current:
-                transactions.append(current)
-                current = None
+                debit_amt = clean_amt(debit)
+                if debit_amt <= 0:
+                    continue
 
-    df = pd.DataFrame(transactions)
-    df = df[df["Amount"] > 0]
-    return df
+                # Extract PARTICULARS only
+                # Remove date & trailing amounts
+                desc = re.sub(r"\d{2}\s\w+\s\d{4}", "", line)
+                desc = re.sub(r"\d+\.\d{2}", "", desc)
+                desc = re.sub(r"\s{2,}", " ", desc).strip()
+
+                transactions.append({
+                    "Date": date_match.group(1),
+                    "Description": desc,
+                    "Amount": debit_amt
+                })
+
+    return pd.DataFrame(transactions)
 
 
+# ---------------- ROUTES ----------------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -174,6 +122,9 @@ def analyze():
 
         df = extract_data(path)
         os.unlink(path)
+
+        if df.empty:
+            return "❌ No valid transactions found"
 
         df["AI Category"] = df["Description"].apply(detect_category)
 
@@ -200,4 +151,4 @@ def analyze():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=5000)
