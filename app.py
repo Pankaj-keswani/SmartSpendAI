@@ -10,91 +10,99 @@ app = Flask(__name__)
 BANK_NOISE = [
     "upi","transfer","hdfc","sbin","icici","idfc",
     "utr","payment","paid","via","yesb","axis",
-    "from","to","ref","upiint","upiintnet"
+    "from","to","ref","upiint","upiintnet",
+    "imps","neft","rtgs","bank"
 ]
 
 # ---------------- CATEGORY ENGINE ----------------
 def detect_category(text):
-    original = str(text).lower()
-    raw = original
+    raw = str(text).lower()
 
     for b in BANK_NOISE:
-        raw = raw.replace(b," ")
+        raw = raw.replace(b, " ")
 
-    raw = re.sub(r"[^a-zA-Z ]","",raw).replace(" ","")
+    raw = re.sub(r"[^a-zA-Z ]", "", raw).replace(" ", "")
 
-    # 🔥 1️⃣ PERSONAL UPI DETECTOR (MOST IMPORTANT)
-    # name + bank + no merchant → Money Transfer
-    if (
-        "upi" in original and
-        re.search(r"\b[a-z]{3,}\b", original) and
-        any(x in original for x in ["sbin","hdfc","icici","axis","yesb","indb","aub","pnb"])
-    ):
-        # if NO merchant keyword present
-        merchant_words = [
-            "swiggy","zomato","flipkart","amazon","myntra","ajio",
-            "bigbasket","recharge","bill","electricity","mobile",
-            "netflix","prime","hotstar"
-        ]
-        if not any(m in original for m in merchant_words):
-            return "Money Transfer"
+    replace_map = {
 
-    mp = {
-
-        # 🛍 SHOPPING
-        "Shopping":[
-            "flipkart","flpkart","flpkrt","flipkrt","pkart",
-            "amazon","amzn","myntra","ajio","meesho","jiomart",
-            "tatacliq","cliq","nykaa","snapdeal","lenskart"
+        # 🛍 SHOPPING / E-COMMERCE
+        "Shopping": [
+            "flipkart","flpkart","flpkrt","fkart","amazon","amzn",
+            "myntra","ajio","meesho","jiomart","tatacliq","cliq",
+            "snapdeal","shopclues","nykaa","firstcry","limeroad"
         ],
 
-        # 🍔 FOOD
-        "Food":[
-            "swiggy","swiggylimited","zomato","eternal",
-            "blinkit","instamart",
-            "dominos","pizzahut","kfc",
-            "restaurant","hotel","dhaba","cafe"
+        # 🍔 FOOD / DELIVERY
+        "Food": [
+            "swiggy","swiggylimited","zomato","blinkit","eternal",
+            "dominos","pizzahut","kfc","mcdonalds","burgerking",
+            "faasos","ovenstory","behrouz","eatfit","freshmenu"
         ],
 
-        # 🧺 GROCERY
-        "Grocery":[
-            "bigbasket","dmart","reliancefresh",
-            "kirana","generalstore","mart","store"
+        # 🥦 GROCERY / DAILY NEEDS
+        "Grocery": [
+            "bigbasket","bbdaily","bbnow","dealshare","dmart",
+            "reliancefresh","morestore","grofers","kirana",
+            "generalstore","mart","store"
         ],
 
         # 💊 HEALTHCARE
-        "Healthcare":[
-            "medical","pharmacy","chemist",
-            "apollo","netmeds","1mg","hospital","clinic"
+        "Healthcare": [
+            "medical","pharmacy","chemist","apollo","netmeds",
+            "1mg","tatamg","medplus","practo","healthcare"
         ],
 
-        # 🚖 TRAVEL
-        "Travel":[
-            "uber","ola","rapido","irctc","redbus"
+        # 🚕 TRAVEL / TRANSPORT
+        "Travel": [
+            "uber","ola","rapido","irctc","redbus","makemytrip",
+            "ixigo","goibibo","yatra","airindia","indigo"
         ],
 
-        # 💡 BILLS (STRICT)
-        "Bills":[
-            "recharge","billdesk","electricity","water","gas",
-            "mobile","broadband","wifi",
-            "airtel","jio","vi","bsnl"
+        # ⛽ FUEL
+        "Fuel": [
+            "fuel","petrol","diesel","hpcl","bpcl","ioc",
+            "indianoil","bharatpetroleum","hindustanpetroleum"
         ],
 
-        # 🎬 SUBSCRIPTIONS
-        "Subscriptions":[
-            "netflix","primevideo","amazonprime",
-            "hotstar","spotify","youtube"
+        # 📱 BILLS / RECHARGE
+        "Bills": [
+            "recharge","billdesk","electricity","waterbill",
+            "gasbill","mobilebill","broadband","fiber",
+            "airtel","jio","vi","vodafone","bsnl"
+        ],
+
+        # 💳 WALLETS / PAYMENT APPS
+        "Wallet": [
+            "paytm","phonepe","gpay","googlepay","amazonpay",
+            "mobikwik","freecharge"
+        ],
+
+        # 🎬 ENTERTAINMENT / SUBSCRIPTIONS
+        "Entertainment": [
+            "netflix","primevideo","amazonprime","hotstar",
+            "disneyhotstar","spotify","wynk","zee5","sonyliv",
+            "youtube","youtubepremium"
+        ],
+
+        # 🎓 EDUCATION
+        "Education": [
+            "byjus","unacademy","udemy","coursera","upgrad",
+            "vedantu","simplilearn","academy"
+        ],
+
+        # 🏦 FINANCE / LOANS / INSURANCE
+        "Finance": [
+            "emi","loan","insurance","lic","policybazaar",
+            "bajajfinserv","hdfclife","sbiinsurance","icicilombard"
         ]
     }
 
-    # 2️⃣ Merchant based detection
-    for category, keywords in mp.items():
-        for k in keywords:
-            if k in raw:
+    for category, keywords in replace_map.items():
+        for kw in keywords:
+            if kw in raw:
                 return category
 
-    # 3️⃣ Wallet should NEVER override personal UPI
-    if "upi" in original:
+    if "upi" in str(text).lower():
         return "Money Transfer"
 
     return "Others"
@@ -154,7 +162,7 @@ def parse_table(pdf):
         desc = str(row[idx_desc]) if idx_desc is not None else ""
         debit = clean_amt(row[idx_debit]) if idx_debit is not None else 0
 
-        if re.search(r"\d",date):
+        if re.search(r"\d{2}|\d{4}", date):
             if current:
                 final.append(current)
 
@@ -173,6 +181,7 @@ def parse_table(pdf):
         final.append(current)
 
     df=pd.DataFrame(final)
+
     if df.empty:
         return None
 
@@ -188,9 +197,8 @@ def parse_text(pdf):
     current=None
 
     IGNORE = [
-        "auto generated","does not require",
-        "customer care","call us","website",
-        "email","address","branch","page"
+        "auto generated","does not require","customer care",
+        "call us","website","email","address","branch","page"
     ]
 
     for page in pdf.pages:
@@ -200,6 +208,7 @@ def parse_text(pdf):
 
         for line in txt.split("\n"):
             l=line.lower().strip()
+
             if any(x in l for x in IGNORE):
                 continue
 
@@ -241,6 +250,7 @@ def extract_data(path):
         return df
 
 
+# ---------------- ROUTES ----------------
 @app.route("/")
 def index():
     return render_template("index.html")
