@@ -1,278 +1,162 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SmartSpend Dashboard</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700;900&display=swap" rel="stylesheet">
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-
 *{margin:0;padding:0;box-sizing:border-box}
-
 body{
-    background:#020617;
-    color:white;
-    font-family:'Poppins',sans-serif;
+ background:#020617;
+ color:white;
+ font-family:'Poppins',sans-serif;
 }
 
-/* ===== Gradient Ambient Background ===== */
+/* Background */
 .bg{
-  position:fixed;
-  inset:0;
-  background:
-     radial-gradient(circle at 20% 30%, rgba(59,130,246,.5), transparent 45%),
-     radial-gradient(circle at 80% 25%, rgba(168,85,247,.55), transparent 45%),
-     radial-gradient(circle at 50% 80%, rgba(14,165,233,.45), transparent 45%);
-  filter:blur(55px);
-  animation:flow 16s infinite alternate ease-in-out;
-  z-index:-2;
-}
-@keyframes flow{
-  to{transform:scale(1.25) translate(-40px,-25px)}
+ position:fixed;inset:0;
+ background:
+ radial-gradient(circle at 20% 30%, rgba(59,130,246,.45), transparent 45%),
+ radial-gradient(circle at 80% 25%, rgba(168,85,247,.55), transparent 45%);
+ filter:blur(55px);
+ z-index:-2;
 }
 
-/* ===== NAVBAR ===== */
+/* Navbar */
 nav{
-  display:flex;
-  justify-content:space-between;
-  padding:22px 50px;
-  font-weight:600;
+ display:flex;
+ justify-content:space-between;
+ padding:18px 22px;
+ font-weight:600;
 }
-.logo{font-size:22px}
-.tag{color:#60a5fa}
 
-/* ===== PAGE CONTAINER ===== */
-.container{ padding:30px; }
+/* Container */
+.container{padding:20px}
 
 /* Title */
 .title{
-    font-size:30px;
-    font-weight:900;
-    margin-bottom:25px;
-    background:linear-gradient(90deg,#60a5fa,#a78bfa);
-    -webkit-background-clip:text;
-    color:transparent;
+ font-size:clamp(22px,5vw,32px);
+ font-weight:900;
+ margin-bottom:18px;
+ background:linear-gradient(90deg,#60a5fa,#a78bfa);
+ -webkit-background-clip:text;
+ color:transparent;
 }
 
 /* Cards */
 .cards{
-    display:flex;
-    gap:20px;
-    flex-wrap:wrap;
+ display:grid;
+ grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+ gap:16px;
 }
-
 .card{
-    background:rgba(15,23,42,.8);
-    border:1px solid rgba(255,255,255,.06);
-    padding:22px;
-    border-radius:18px;
-    min-width:260px;
-    flex:1;
-    box-shadow:0 0 30px rgba(99,102,241,.25);
-    backdrop-filter:blur(18px);
-    transition:.25s;
-}
-.card:hover{
-    transform:translateY(-4px);
-    box-shadow:0 0 45px rgba(129,140,248,.35);
-}
-
-/* Big Section */
-.big-card{
-    margin-top:28px;
-    background:rgba(15,23,42,.85);
-    border-radius:20px;
-    padding:25px;
-    border:1px solid rgba(255,255,255,.08);
-    box-shadow:0 0 40px rgba(0,0,0,.35);
+ background:rgba(15,23,42,.85);
+ padding:20px;
+ border-radius:18px;
+ border:1px solid rgba(255,255,255,.08);
+ box-shadow:0 0 35px rgba(99,102,241,.25);
 }
 
 /* Table */
+.big-card{
+ margin-top:25px;
+ background:rgba(15,23,42,.85);
+ border-radius:18px;
+ padding:18px;
+ overflow-x:auto;
+}
 table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:15px;
+ width:100%;
+ border-collapse:collapse;
+ min-width:620px;
 }
 th,td{
-   padding:12px;
-   font-size:14px;
+ padding:12px;
+ font-size:13px;
 }
-th{
-   background:#0f1a2f;
-}
+th{background:#0f1a2f}
 tr:nth-child(even){background:#0b1225}
 tr:nth-child(odd){background:#070d1d}
 
-/* Category Pills */
+/* Chips */
 .chip{
- padding:7px 10px;
- border-radius:12px;
+ padding:6px 10px;
+ border-radius:10px;
  font-size:12px;
- font-weight:600;
- color:white;
 }
 .shopping{background:#2563EB}
 .food{background:#16A34A}
 .transfer{background:#7C3AED}
 .bills{background:#DC2626}
-.wallet{background:#EA580C}
 .others{background:#6B7280}
-
-/* Charts smooth edges */
-canvas{padding:10px}
-
-/* Footer */
-footer{
- text-align:center;
- padding:18px;
- opacity:.9;
- font-size:13px;
-}
-.highlight{color:#60a5fa}
-
 </style>
 </head>
 
 <body>
-
 <div class="bg"></div>
 
 <nav>
-  <div class="logo">
-  💸 SmartSpend <span class="tag">AI</span>
-  </div>
-
-  <div>Welcome back 👋</div>
+ <div>💸 SmartSpend <span style="color:#60a5fa">AI</span></div>
+ <div>Welcome back 👋</div>
 </nav>
 
 <div class="container">
-
 <div class="title">Expense Intelligence Dashboard</div>
 
-<!-- Summary Cards -->
 <div class="cards">
-
-  <div class="card">
-    <b>Total Spend</b><br>
-    <span style="font-size:28px;">₹ {{ total_spend }}</span>
-  </div>
-
-  <div class="card">
-    <b>Total Transactions</b><br>
-    <span style="font-size:28px;">{{ total_transactions }}</span>
-  </div>
-
-  <div class="card">
-    <b>Top Category</b><br>
-    <span style="font-size:22px;">{{ top_category }}</span>
-  </div>
-
+ <div class="card"><b>Total Spend</b><br><span style="font-size:26px;">₹ {{ total_spend }}</span></div>
+ <div class="card"><b>Total Transactions</b><br><span style="font-size:26px;">{{ total_transactions }}</span></div>
+ <div class="card"><b>Top Category</b><br><span style="font-size:20px;">{{ top_category }}</span></div>
 </div>
 
-<!-- Charts -->
-<div class="cards">
-
-  <div class="card">
-    <b>Spending Breakdown</b>
-    <canvas id="pieChart"></canvas>
-  </div>
-
-  <div class="card">
-    <b>Category-wise Spend</b>
-    <canvas id="barChart"></canvas>
-  </div>
-
+<div class="cards" style="margin-top:20px">
+ <div class="card"><canvas id="pieChart"></canvas></div>
+ <div class="card"><canvas id="barChart"></canvas></div>
 </div>
 
-<!-- Table -->
 <div class="big-card">
 <b>📄 Transaction Details</b>
 
 <table>
-<tr>
-<th>Date</th>
-<th>Description</th>
-<th>Amount</th>
-<th>AI Category</th>
-</tr>
-
+<tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr>
 {% for t in rows %}
 <tr>
 <td>{{ t['Transaction Date'] }}</td>
 <td>{{ t['Description/Narration'] }}</td>
 <td>₹ {{ t['Amount'] }}</td>
-
 <td>
 <span class="chip
 {% if t['AI Category']=="Shopping" %}shopping
 {% elif t['AI Category']=="Food" %}food
 {% elif t['AI Category']=="Money Transfer" %}transfer
 {% elif t['AI Category']=="Bills" %}bills
-{% elif t['AI Category']=="Wallet" %}wallet
 {% else %}others{% endif %}
-">
-{{ t['AI Category'] }}
-</span>
+">{{ t['AI Category'] }}</span>
 </td>
 </tr>
 {% endfor %}
 </table>
-
 </div>
 </div>
-
-
-<footer>
- Built by <span class="highlight">Pankaj Keswani</span>
-</footer>
-
 
 <script>
-
-var labels = [
-{% for c in category_summary %}
-"{{ c[0] }}",
-{% endfor %}
-];
-
-var values = [
-{% for c in category_summary %}
-{{ c[1] }},
-{% endfor %}
-];
-
+const labels = [{% for c in category_summary %}"{{ c[0] }}",{% endfor %}];
+const values = [{% for c in category_summary %}{{ c[1] }},{% endfor %}];
 
 new Chart(pieChart,{
  type:"pie",
- data:{
-  labels:labels,
-  datasets:[{
-   data:values,
-   backgroundColor:[
-    "#60a5fa","#a78bfa","#34d399","#fca5a5","#fbbf24","#9ca3af"
-   ]
-  }]
- }
+ data:{labels,datasets:[{data:values,backgroundColor:["#60a5fa","#a78bfa","#34d399","#fca5a5","#9ca3af"]}]}
 });
-
 
 new Chart(barChart,{
  type:"bar",
- data:{
-  labels:labels,
-  datasets:[{
-   data:values,
-   backgroundColor:"#38BDF8"
-  }]
- },
- options:{
-  plugins:{legend:{display:false}},
-  scales:{y:{grid:{color:"#111"}}}
- }
+ data:{labels,datasets:[{data:values,backgroundColor:"#38BDF8"}]},
+ options:{plugins:{legend:{display:false}}}
 });
-
 </script>
 
 </body>
