@@ -13,7 +13,7 @@ BANK_NOISE = [
     "from","to","ref","upiint","upiintnet"
 ]
 
-
+# ---------------- CATEGORY ENGINE ----------------
 def detect_category(text):
     raw = str(text).lower()
 
@@ -36,11 +36,13 @@ def detect_category(text):
             if w in raw:
                 return k
 
-    if "upi" in str(text).lower(): return "Money Transfer"
+    if "upi" in str(text).lower(): 
+        return "Money Transfer"
+
     return "Others"
 
 
-
+# ---------------- AMOUNT CLEANER ----------------
 def clean_amt(v):
     if not v or str(v).strip()=="" or str(v).strip()=="-":
         return 0.0
@@ -49,22 +51,16 @@ def clean_amt(v):
 
     try:
         num = float(v)
-
-        # prevent UPI IDs
         if len(v.replace(".",""))>=10:
             return 0.0
-
-        # prevent unrealistic amounts
         if num>9999999:
             return 0.0
-
         return num
     except:
         return 0.0
 
 
-
-# ⭐ MODE 1 → TABLE PARSER
+# ⭐ MODE 1 → TABLE PARSER (UNCHANGED LOGIC)
 def parse_table(pdf):
     rows=[]
     for page in pdf.pages:
@@ -89,7 +85,6 @@ def parse_table(pdf):
     idx_date = find(["date"])
     idx_desc = find(["description","narration","details","particular"])
     idx_debit = find(["debit","withdraw","dr"])
-    idx_credit = find(["credit","cr","deposit"])
 
     final=[]
     current=None
@@ -100,24 +95,24 @@ def parse_table(pdf):
         date = str(row[idx_date]) if idx_date is not None else ""
         desc = str(row[idx_desc]) if idx_desc is not None else ""
         debit = clean_amt(row[idx_debit]) if idx_debit is not None else 0
-        credit = clean_amt(row[idx_credit]) if idx_credit is not None else 0
 
-        # NEW ENTRY
-        if re.search(r"\d",date):
-            if current: final.append(current)
+        if re.search(r"\d{2}|\d{4}", date):
+            if current:
+                final.append(current)
 
             current={
                 "Date":date,
-                "Description":desc.replace("\n"," "),
-                "Amount":debit  # debit only
+                "Description":desc.replace("\n"," ").strip(),
+                "Amount":debit
             }
         else:
-            if current:
-                current["Description"]+=" "+desc
+            if current and desc.strip():
+                current["Description"] += " " + desc.replace("\n"," ").strip()
                 if not current["Amount"]:
                     current["Amount"]=debit
 
-    if current: final.append(current)
+    if current:
+        final.append(current)
 
     df=pd.DataFrame(final)
 
@@ -130,30 +125,47 @@ def parse_table(pdf):
     return df
 
 
-
-# ⭐ MODE 2 → TEXT PARSER (backup)
+# ⭐ MODE 2 → TEXT PARSER (FIXED)
 def parse_text(pdf):
     data=[]
+    current=None
+
+    IGNORE = [
+        "auto generated","does not require","customer care",
+        "call us","website","email","address","branch","page"
+    ]
+
     for page in pdf.pages:
         txt=page.extract_text()
-        if not txt: continue
+        if not txt:
+            continue
 
         for line in txt.split("\n"):
-            # detect amount
+            l=line.lower().strip()
+
+            if any(x in l for x in IGNORE):
+                continue
+
             amt_match=re.search(r"\d+\.\d{2}", line)
-            if not amt_match: 
-                continue
+            amt = clean_amt(amt_match.group()) if amt_match else 0
 
-            amt=clean_amt(amt_match.group())
+            if amt>0 and ("upi" in l or "imps" in l or "neft" in l):
+                if current:
+                    data.append(current)
 
-            if amt==0:
-                continue
+                current={
+                    "Date":"N/A",
+                    "Description":line.strip(),
+                    "Amount":amt
+                }
 
-            data.append({
-                "Date":"N/A",
-                "Description":line[:120],
-                "Amount":amt
-            })
+            else:
+                if current and line.strip():
+                    current["Description"] += " " + line.strip()
+
+        if current:
+            data.append(current)
+            current=None
 
     if not data:
         return None
@@ -161,24 +173,19 @@ def parse_text(pdf):
     df=pd.DataFrame(data)
     df=df[df["Amount"]>0]
     df=df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
+
     return df
-
-
 
 
 def extract_data(path):
     with pdfplumber.open(path) as pdf:
-
         df=parse_table(pdf)
-
-        # fallback
         if df is None or df.empty:
             df=parse_text(pdf)
-
         return df
 
 
-
+# ---------------- ROUTES ----------------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -208,7 +215,10 @@ def analyze():
 
         return render_template(
             "dashboard.html",
-            rows=df.rename(columns={"Date":"Transaction Date","Description":"Description/Narration"}).to_dict("records"),
+            rows=df.rename(columns={
+                "Date":"Transaction Date",
+                "Description":"Description/Narration"
+            }).to_dict("records"),
             total_spend=round(total,2),
             total_transactions=tx,
             top_category=top,
@@ -217,7 +227,6 @@ def analyze():
 
     except Exception as e:
         return f"❌ Error: {str(e)}"
-
 
 
 if __name__=="__main__":
