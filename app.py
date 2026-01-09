@@ -34,7 +34,7 @@ def detect_category(text):
 
         # 🍔 FOOD / DELIVERY
         "Food": [
-            "swiggy","swiggylimited","zomato","blinkit","eternal",
+            "swiggy@","swiggy","swiggylimited","zomato@","zomato","blinkit@","blinkit","eternal",
             "dominos","pizzahut","kfc","mcdonalds","burgerking",
             "faasos","ovenstory","behrouz","eatfit","freshmenu"
         ],
