@@ -32,7 +32,7 @@ nav{
  display:flex;
  justify-content:space-between;
  padding:18px 22px;
- background:rgba(2,6,23,.75);
+ background:rgba(2,6,23,.8);
  backdrop-filter:blur(18px);
  z-index:10;
 }
@@ -44,10 +44,20 @@ nav{
 .title{
  font-size:clamp(22px,5vw,34px);
  font-weight:900;
- margin-bottom:16px;
+ margin-bottom:14px;
  background:linear-gradient(90deg,#60a5fa,#a78bfa);
  -webkit-background-clip:text;
  color:transparent;
+}
+
+/* Insight */
+.insight{
+ background:rgba(15,23,42,.9);
+ border-radius:16px;
+ padding:14px;
+ font-size:13px;
+ margin-bottom:18px;
+ border-left:4px solid #60a5fa;
 }
 
 /* Cards */
@@ -57,10 +67,9 @@ nav{
  gap:16px;
 }
 .card{
- background:rgba(15,23,42,.85);
+ background:rgba(15,23,42,.9);
  padding:20px;
  border-radius:18px;
- border:1px solid rgba(255,255,255,.08);
  box-shadow:0 0 40px rgba(99,102,241,.25);
 }
 
@@ -84,14 +93,14 @@ nav{
 /* Table */
 .big-card{
  margin-top:20px;
- background:rgba(15,23,42,.9);
+ background:rgba(15,23,42,.95);
  border-radius:18px;
  padding:16px;
  overflow-x:auto;
 }
 table{
  width:100%;
- min-width:700px;
+ min-width:720px;
  border-collapse:collapse;
 }
 th,td{padding:12px;font-size:13px}
@@ -118,23 +127,28 @@ tr:nth-child(even){background:#0b1225}
 
 <nav>
  <div>💸 SmartSpend <span style="color:#60a5fa">AI</span></div>
- <div>Overview</div>
+ <div>Dashboard</div>
 </nav>
 
 <div class="container">
-<div class="title">Expense Intelligence Dashboard</div>
+
+<div class="title">Expense Intelligence</div>
+
+<div class="insight">
+ 💡 You made <b>{{ total_transactions }}</b> transactions with total spend of <b>₹ {{ total_spend }}</b>.
+</div>
 
 <div class="cards">
- <div class="card"><b>Total Spend</b><br><span style="font-size:26px;">₹ {{ total_spend }}</span></div>
- <div class="card"><b>Total Transactions</b><br><span style="font-size:26px;">{{ total_transactions }}</span></div>
- <div class="card"><b>Top Category</b><br><span style="font-size:20px;">{{ top_category }}</span></div>
+ <div class="card"><b>Total Spend</b><br><span id="spend" style="font-size:26px">0</span></div>
+ <div class="card"><b>Total Transactions</b><br><span id="tx" style="font-size:26px">0</span></div>
+ <div class="card"><b>Top Category</b><br><span style="font-size:20px">{{ top_category }}</span></div>
 </div>
 
 <div class="filters">
  <div class="filter active">All</div>
  <div class="filter">Food</div>
  <div class="filter">Shopping</div>
- <div class="filter">Transfers</div>
+ <div class="filter">Money Transfer</div>
 </div>
 
 <div class="cards">
@@ -167,6 +181,18 @@ tr:nth-child(even){background:#0b1225}
 </div>
 
 <script>
+function animate(id,val){
+ let c=0;
+ const el=document.getElementById(id);
+ const t=setInterval(()=>{
+  c+=Math.ceil(val/40);
+  if(c>=val){c=val;clearInterval(t)}
+  el.innerText=(id==="spend"?"₹ ":"")+c;
+ },30);
+}
+animate("spend",{{ total_spend|int }});
+animate("tx",{{ total_transactions }});
+
 const labels=[{% for c in category_summary %}"{{ c[0] }}",{% endfor %}];
 const values=[{% for c in category_summary %}{{ c[1] }},{% endfor %}];
 
