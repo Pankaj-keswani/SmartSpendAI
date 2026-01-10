@@ -3,261 +3,225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartSpend AI | Premium Expense Analytics</title>
+    <title>SmartSpend AI | Interactive Analytics</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #6366f1;
             --secondary: #a855f7;
-            --accent: #60a5fa;
-            --bg: #030712;
-            --glass: rgba(255, 255, 255, 0.03);
-            --border: rgba(255, 255, 255, 0.1);
+            --accent: #00f2ff;
+            --bg-dark: #020617;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Poppins', sans-serif;
-            background: var(--bg);
+            background: var(--bg-dark);
             color: white;
-            overflow-x: hidden;
-            line-height: 1.6;
+            overflow: hidden; /* Screen ke baahar kachra na dikhe */
+            height: 100vh;
         }
 
-        /* 🌌 Deep Space Background */
-        .universe {
+        /* 🌈 1. Dynamic Gradient Background */
+        .bg-animate {
             position: fixed;
             inset: 0;
+            background: linear-gradient(45deg, #0f172a, #1e1b4b, #312e81, #1e1b4b);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
             z-index: -10;
-            background: radial-gradient(circle at 50% 50%, #1e1b4b 0%, #030712 100%);
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
-        .blob {
+        /* ✨ 2. Mouse Glow Light */
+        #cursor-glow {
             position: fixed;
-            width: 500px; height: 500px;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
             border-radius: 50%;
-            filter: blur(140px);
-            opacity: 0.3;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
             z-index: -5;
-            animation: move 20s infinite alternate linear;
-        }
-        .blob-1 { background: var(--primary); top: -10%; left: -10%; }
-        .blob-2 { background: var(--secondary); bottom: -10%; right: -10%; }
-
-        @keyframes move {
-            from { transform: translate(0, 0) scale(1); }
-            to { transform: translate(100px, 50px) scale(1.2); }
+            transition: width 0.3s, height 0.3s;
         }
 
-        /* ✨ Navigation */
-        nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 25px 8%;
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--border);
-            position: sticky; top: 0; z-index: 100;
+        /* ☄️ 3. Falling Currency Particles */
+        .particle {
+            position: fixed;
+            top: -50px;
+            font-size: 1.5rem;
+            color: var(--accent);
+            opacity: 0.3;
+            user-select: none;
+            pointer-events: none;
+            animation: fall linear forwards;
+            z-index: -2;
         }
-        .logo { font-size: 1.5rem; font-weight: 800; letter-spacing: -1px; }
-        .logo span { color: var(--accent); }
+        @keyframes fall {
+            to { transform: translateY(110vh) rotate(360deg); }
+        }
 
-        /* 🚀 Hero Section */
-        .hero {
-            padding: 100px 5%;
+        /* 🚀 Hero & Card */
+        .container {
+            height: 100vh;
             display: flex;
             flex-direction: column;
+            justify-content: center;
             align-items: center;
-            text-align: center;
+            z-index: 10;
+            position: relative;
         }
 
-        .hero h1 {
-            font-size: clamp(2.5rem, 8vw, 4.5rem);
+        .hero-h1 {
+            font-size: clamp(2rem, 8vw, 4rem);
             font-weight: 800;
-            background: linear-gradient(to right, #fff, var(--accent), var(--secondary));
+            text-align: center;
+            background: linear-gradient(to right, #fff, var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 0 10px rgba(0,242,255,0.3));
         }
 
-        .hero p {
-            color: #94a3b8;
-            max-width: 600px;
-            font-size: 1.1rem;
-            margin-bottom: 40px;
-        }
-
-        /* 💳 Glass Card & Upload Zone */
-        .upload-card {
-            background: rgba(15, 23, 42, 0.6);
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(20px);
-            border: 1px solid var(--border);
-            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
             padding: 40px;
-            width: 100%;
-            max-width: 500px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            position: relative;
-            overflow: hidden;
+            border-radius: 30px;
+            width: 90%; max-width: 450px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            transition: transform 0.3s ease;
         }
+        .glass-card:hover { transform: translateY(-10px); border-color: var(--accent); }
 
-        .upload-card::before {
-            content: '';
-            position: absolute; top: 0; left: -100%;
-            width: 100%; height: 3px;
-            background: linear-gradient(90deg, transparent, var(--accent), transparent);
-            animation: scan 3s infinite linear;
-        }
-
-        @keyframes scan {
-            0% { left: -100%; }
-            100% { left: 100%; }
-        }
-
+        /* 📂 Upload Zone */
         .drop-zone {
-            border: 2px dashed #334155;
+            border: 2px dashed rgba(255,255,255,0.2);
+            padding: 30px;
             border-radius: 20px;
-            padding: 40px 20px;
-            transition: 0.3s;
+            margin: 20px 0;
             cursor: pointer;
-            position: relative;
+            transition: 0.3s;
         }
+        .drop-zone:hover { border-color: var(--accent); background: rgba(0,242,255,0.05); }
 
-        .drop-zone:hover, .drop-zone.active {
-            border-color: var(--accent);
-            background: rgba(96, 165, 250, 0.05);
-        }
-
-        input[type="file"] { display: none; }
-
-        .btn-analyze {
+        button {
             width: 100%;
-            padding: 16px;
-            margin-top: 25px;
-            border-radius: 15px;
+            padding: 15px;
             border: none;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 15px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
             color: white;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 1rem;
             cursor: pointer;
+            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
             transition: 0.3s;
-            box-shadow: 0 10px 20px -5px rgba(124, 58, 237, 0.5);
         }
+        button:hover { letter-spacing: 1px; box-shadow: 0 0 30px var(--primary); }
 
-        .btn-analyze:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 30px -5px rgba(124, 58, 237, 0.7);
+        /* ⏳ 4. Futuristic Loader Overlay */
+        #loader-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
         }
-
-        /* 🛠 Features Row */
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 80px;
-            width: 100%;
-            max-width: 1000px;
+        .scanner-line {
+            width: 300px;
+            height: 2px;
+            background: var(--accent);
+            box-shadow: 0 0 20px var(--accent);
+            position: relative;
+            animation: scan 2s infinite ease-in-out;
         }
-
-        .feat-box {
-            padding: 30px;
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            text-align: left;
+        @keyframes scan {
+            0%, 100% { transform: translateY(-100px); }
+            50% { transform: translateY(100px); }
         }
+        .loader-text { margin-top: 40px; font-weight: 600; letter-spacing: 2px; color: var(--accent); }
 
-        .feat-box h3 { color: var(--accent); margin-bottom: 10px; }
-        .feat-box p { font-size: 0.9rem; color: #94a3b8; }
-
-        footer {
-            padding: 50px 0;
-            text-align: center;
-            border-top: 1px solid var(--border);
-            margin-top: 100px;
-            color: #64748b;
-        }
-
-        #file-name {
-            display: block;
-            margin-top: 10px;
-            font-size: 0.85rem;
-            color: var(--accent);
-        }
     </style>
 </head>
 <body>
 
-<div class="universe"></div>
-<div class="blob blob-1"></div>
-<div class="blob blob-2"></div>
+    <div class="bg-animate"></div>
+    <div id="cursor-glow"></div>
 
-<nav>
-    <div class="logo">💸 SmartSpend <span>AI</span></div>
-    <div style="font-size: 0.8rem; opacity: 0.7;">V2.0 PRO</div>
-</nav>
+    <nav style="position: absolute; top: 0; width: 100%; padding: 30px 50px; display: flex; justify-content: space-between; z-index: 20;">
+        <div style="font-weight: 800; font-size: 1.4rem;">💸 SmartSpend <span style="color:var(--accent)">AI</span></div>
+        <div style="opacity: 0.6;">By Pankaj Keswani</div>
+    </nav>
 
-<div class="hero">
-    <h1>Analyze Spends like a <span>Pro</span></h1>
-    <p>Upload your PDF bank statement and let our AI categorize every rupee. Safe, secure, and blazingly fast.</p>
+    <div class="container">
+        <h1 class="hero-h1">AI Expense Intelligence</h1>
+        <p style="color: #94a3b8; margin-bottom: 30px;">See where your money goes, instantly.</p>
 
-    <div class="upload-card">
-        <form action="/analyze" method="POST" enctype="multipart/form-data">
-            <label for="file-upload" class="drop-zone" id="drop-area">
-                <div style="font-size: 3rem; margin-bottom: 10px;">📄</div>
-                <p>Drag & drop PDF here or <strong>Click to Browse</strong></p>
-                <span id="file-name"></span>
-                <input type="file" name="file" id="file-upload" required onchange="updateFileName()">
-            </label>
-            <button type="submit" class="btn-analyze">✨ Analyze Intelligence</button>
-        </form>
-    </div>
-
-    <div class="features">
-        <div class="feat-box">
-            <h3>Automated Classification</h3>
-            <p>Smart mapping for Swiggy, Zomato, Amazon, and more.</p>
-        </div>
-        <div class="feat-box">
-            <h3>Privacy First</h3>
-            <p>Your data stays encrypted and is processed only for analysis.</p>
-        </div>
-        <div class="feat-box">
-            <h3>Visual Insights</h3>
-            <p>Beautifully crafted charts for better financial clarity.</p>
+        <div class="glass-card">
+            <form id="analyze-form" action="/analyze" method="POST" enctype="multipart/form-data">
+                <label for="file-input" class="drop-zone" id="drop-label">
+                    <div style="font-size: 3rem; margin-bottom: 10px;">📊</div>
+                    <p id="file-status">Click to upload Statement</p>
+                    <input type="file" name="file" id="file-input" hidden required onchange="showFileName()">
+                </label>
+                <button type="submit">✨ START ANALYSIS</button>
+            </form>
         </div>
     </div>
-</div>
 
-<footer>
-    Built with ❤️ by Pankaj Keswani • © 2026 SmartSpend AI
-</footer>
+    <div id="loader-overlay">
+        <div class="scanner-line"></div>
+        <div class="loader-text">SCANNING YOUR TRANSACTIONS...</div>
+        <p style="margin-top: 10px; font-size: 0.8rem; opacity: 0.5;">AI is categorizing your spends</p>
+    </div>
 
-<script>
-    function updateFileName() {
-        const input = document.getElementById('file-upload');
-        const fileName = document.getElementById('file-name');
-        fileName.textContent = input.files.length > 0 ? "Selected: " + input.files[0].name : "";
-    }
+    <script>
+        // 1. Mouse Glow Effect
+        const glow = document.getElementById('cursor-glow');
+        document.addEventListener('mousemove', (e) => {
+            glow.style.left = e.clientX + 'px';
+            glow.style.top = e.clientY + 'px';
+        });
 
-    // Drag and Drop Visual Effect
-    const dropArea = document.getElementById('drop-area');
+        // 2. Falling Rupees Decoration
+        function createParticle() {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            p.innerText = ['₹', '💰', '💸', '💎'][Math.floor(Math.random() * 4)];
+            p.style.left = Math.random() * 100 + 'vw';
+            const duration = 5 + Math.random() * 10;
+            p.style.animationDuration = duration + 's';
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), duration * 1000);
+        }
+        setInterval(createParticle, 500);
 
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            dropArea.classList.add('active');
-        }, false);
-    });
+        // 3. File Name Update
+        function showFileName() {
+            const input = document.getElementById('file-input');
+            const status = document.getElementById('file-status');
+            if (input.files.length > 0) {
+                status.innerHTML = "Selected: <br><strong style='color:#00f2ff'>" + input.files[0].name + "</strong>";
+                status.style.fontSize = "0.9rem";
+            }
+        }
 
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            dropArea.classList.remove('active');
-        }, false);
-    });
-</script>
+        // 4. Loading Effect on Submit
+        document.getElementById('analyze-form').addEventListener('submit', function() {
+            document.getElementById('loader-overlay').style.display = 'flex';
+        });
+    </script>
 
 </body>
 </html>
