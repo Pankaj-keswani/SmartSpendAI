@@ -250,6 +250,13 @@ def extract_data(path):
 def index():
     return render_template("index.html")
 
+
+# ✅ HEALTH CHECK ROUTE (for UptimeRobot / Ping)
+@app.route("/health")
+def health():
+    return "OK", 200
+
+
 @app.route("/analyze", methods=["POST"])
 def analyze():
     try:
