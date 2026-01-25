@@ -3,15 +3,16 @@ import re
 import tempfile
 import pandas as pd
 import pdfplumber
-from flask import Flask, render_template, request
+import streamlit as st
 
-app = Flask(__name__)
+# ---------------- APP CONFIG ----------------
+st.set_page_config(page_title="SmartSpendAI", layout="wide")
 
 BANK_NOISE = [
-    "upi","transfer","hdfc","sbin","icici","idfc",
-    "utr","payment","paid","via","yesb","axis",
-    "from","to","ref","upiint","upiintnet",
-    "imps","neft","rtgs","bank"
+    "upi", "transfer", "hdfc", "sbin", "icici", "idfc",
+    "utr", "payment", "paid", "via", "yesb", "axis",
+    "from", "to", "ref", "upiint", "upiintnet",
+    "imps", "neft", "rtgs", "bank"
 ]
 
 # ---------------- CATEGORY ENGINE ----------------
@@ -105,16 +106,16 @@ def detect_category(text):
 
 # ---------------- AMOUNT CLEANER ----------------
 def clean_amt(v):
-    if not v or str(v).strip()=="" or str(v).strip()=="-":
+    if not v or str(v).strip() == "" or str(v).strip() == "-":
         return 0.0
 
     v = re.sub(r"[^\d.]", "", str(v))
 
     try:
         num = float(v)
-        if len(v.replace(".",""))>=10:
+        if len(v.replace(".", "")) >= 10:
             return 0.0
-        if num>9999999:
+        if num > 9999999:
             return 0.0
         return num
     except:
@@ -123,7 +124,7 @@ def clean_amt(v):
 
 # ⭐ MODE 1 → TABLE PARSER
 def parse_table(pdf):
-    rows=[]
+    rows = []
     for page in pdf.pages:
         table = page.extract_table()
         if table:
@@ -135,23 +136,23 @@ def parse_table(pdf):
 
     df = pd.DataFrame(rows)
     headers = [str(x).lower() for x in df.iloc[0]]
-    df=df[1:].reset_index(drop=True)
+    df = df[1:].reset_index(drop=True)
 
     def find(keys):
-        for i,h in enumerate(headers):
+        for i, h in enumerate(headers):
             if any(k in h for k in keys):
                 return i
         return None
 
     idx_date = find(["date"])
-    idx_desc = find(["description","narration","details","particular"])
-    idx_debit = find(["debit","withdraw","dr"])
+    idx_desc = find(["description", "narration", "details", "particular"])
+    idx_debit = find(["debit", "withdraw", "dr"])
 
-    final=[]
-    current=None
+    final = []
+    current = None
 
     for i in range(len(df)):
-        row=df.iloc[i]
+        row = df.iloc[i]
 
         date = str(row[idx_date]) if idx_date is not None else ""
         desc = str(row[idx_desc]) if idx_desc is not None else ""
@@ -161,63 +162,63 @@ def parse_table(pdf):
             if current:
                 final.append(current)
 
-            current={
-                "Date":date,
-                "Description":desc.replace("\n"," ").strip(),
-                "Amount":debit
+            current = {
+                "Date": date,
+                "Description": desc.replace("\n", " ").strip(),
+                "Amount": debit
             }
         else:
             if current and desc.strip():
-                current["Description"] += " " + desc.replace("\n"," ").strip()
+                current["Description"] += " " + desc.replace("\n", " ").strip()
                 if not current["Amount"]:
-                    current["Amount"]=debit
+                    current["Amount"] = debit
 
     if current:
         final.append(current)
 
-    df=pd.DataFrame(final)
+    df = pd.DataFrame(final)
 
     if df.empty:
         return None
 
-    df=df[df["Amount"]>0]
-    df=df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
+    df = df[df["Amount"] > 0]
+    df = df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
 
     return df
 
 
 # ⭐ MODE 2 → TEXT PARSER
 def parse_text(pdf):
-    data=[]
-    current=None
+    data = []
+    current = None
 
     IGNORE = [
-        "auto generated","does not require","customer care",
-        "call us","website","email","address","branch","page"
+        "auto generated", "does not require", "customer care",
+        "call us", "website", "email", "address", "branch", "page"
     ]
 
     for page in pdf.pages:
-        txt=page.extract_text()
+        txt = page.extract_text()
         if not txt:
             continue
 
         for line in txt.split("\n"):
-            l=line.lower().strip()
+            l = line.lower().strip()
 
             if any(x in l for x in IGNORE):
                 continue
 
-            amt_match=re.search(r"\d+\.\d{2}", line)
+            amt_match = re.search(r"\d+\.\d{2}", line)
             amt = clean_amt(amt_match.group()) if amt_match else 0
 
-            if amt>0 and ("upi" in l or "imps" in l or "neft" in l):
+            if amt > 0 and ("upi" in l or "imps" in l or "neft" in l):
                 if current:
                     data.append(current)
 
-                current={
-                    "Date":"N/A",
-                    "Description":line.strip(),
-                    "Amount":amt
+                current = {
+                    "Date": "N/A",
+                    "Description": line.strip(),
+                    "Amount": amt
                 }
             else:
                 if current and line.strip():
@@ -225,69 +226,84 @@ def parse_text(pdf):
 
         if current:
             data.append(current)
-            current=None
+            current = None
 
     if not data:
         return None
 
-    df=pd.DataFrame(data)
-    df=df[df["Amount"]>0]
-    df=df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
+    df = pd.DataFrame(data)
+    df = df[df["Amount"] > 0]
+    df = df[~df["Description"].str.upper().str.contains("TOTAL|BALANCE|SUMMARY|INTEREST")]
 
     return df
 
 
 def extract_data(path):
     with pdfplumber.open(path) as pdf:
-        df=parse_table(pdf)
+        df = parse_table(pdf)
         if df is None or df.empty:
-            df=parse_text(pdf)
+            df = parse_text(pdf)
         return df
 
 
-# ---------------- ROUTES ----------------
-@app.route("/")
-def index():
-    return render_template("index.html")
+# ---------------- STREAMLIT UI ----------------
+st.title("📊 SmartSpendAI - Bank Statement Analyzer")
+st.write("Upload your **Bank Statement PDF** and get spending analysis with AI-based categories ✅")
 
-@app.route("/analyze", methods=["POST"])
-def analyze():
-    try:
-        file=request.files["file"]
+uploaded_file = st.file_uploader("📄 Upload your PDF", type=["pdf"])
 
-        with tempfile.NamedTemporaryFile(delete=False,suffix=".pdf") as tmp:
-            file.save(tmp.name)
-            path=tmp.name
+if uploaded_file:
+    with st.spinner("🔍 Analyzing your PDF... Please wait"):
+        try:
+            # Save uploaded file temporarily
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(uploaded_file.read())
+                path = tmp.name
 
-        df=extract_data(path)
-        os.unlink(path)
+            df = extract_data(path)
+            os.unlink(path)
 
-        if df is None or df.empty:
-            return "❌ Unsupported / unreadable format"
+            if df is None or df.empty:
+                st.error("❌ Unsupported / unreadable format")
+                st.stop()
 
-        df["AI Category"]=df["Description"].apply(detect_category)
+            df["AI Category"] = df["Description"].apply(detect_category)
 
-        total=df["Amount"].sum()
-        tx=len(df)
+            total = df["Amount"].sum()
+            tx = len(df)
 
-        cat=df.groupby("AI Category")["Amount"].sum().reset_index()
-        top=cat.loc[cat["Amount"].idxmax()]["AI Category"]
+            cat = df.groupby("AI Category")["Amount"].sum().reset_index()
+            top = cat.loc[cat["Amount"].idxmax()]["AI Category"]
 
-        return render_template(
-            "dashboard.html",
-            rows=df.rename(columns={
-                "Date":"Transaction Date",
-                "Description":"Description/Narration"
-            }).to_dict("records"),
-            total_spend=round(total,2),
-            total_transactions=tx,
-            top_category=top,
-            category_summary=cat.values.tolist()
-        )
+            # --- KPIs ---
+            col1, col2, col3 = st.columns(3)
+            col1.metric("💰 Total Spend", f"₹ {round(total, 2)}")
+            col2.metric("🧾 Total Transactions", tx)
+            col3.metric("🏆 Top Category", top)
 
-    except Exception as e:
-        return f"❌ Error: {str(e)}"
+            st.divider()
 
+            # --- Category Summary Table ---
+            st.subheader("📌 Category Summary")
+            st.dataframe(cat, use_container_width=True)
 
-if __name__=="__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT",5000)))
+            st.divider()
+
+            # --- Transactions Table ---
+            st.subheader("📋 Transactions")
+            df_display = df.rename(columns={
+                "Date": "Transaction Date",
+                "Description": "Description/Narration"
+            })
+            st.dataframe(df_display, use_container_width=True)
+
+            st.divider()
+
+            # --- Chart ---
+            st.subheader("📈 Spending Chart (by Category)")
+            st.bar_chart(cat.set_index("AI Category")["Amount"])
+
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+else:
+    st.info("👆 Upload a PDF to start analysis.")
