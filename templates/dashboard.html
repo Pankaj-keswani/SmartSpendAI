@@ -1048,20 +1048,20 @@
        DATA FROM JINJA
        ═══════════════════════════════════════ */
     const categorySummary = [
-        {% for c in category_summary %}{name: "{{ c[0] }}", value: {{ c[1] }}}{% if not loop.last %},{% endif %}
+        {% for c in category_summary %}{name: {{ c[0]|tojson }}, value: {{ c[1] }}}{% if not loop.last %},{% endif %}
         {% endfor %}
     ].sort((a, b) => b.value - a.value);
 
     const topMerchants = [
         {% if top_merchants is defined %}
-        {% for m in top_merchants %}{name:"{{ m[0] }}", total:{{ m[1] }}, count:{{ m[2] }}}{% if not loop.last %},{% endif %}
+        {% for m in top_merchants %}{name: {{ m[0]|tojson }}, total: {{ m[1] }}, count: {{ m[2] }}}{% if not loop.last %},{% endif %}
         {% endfor %}
         {% endif %}
     ].slice(0, 10);
 
     const dailySpending = [
         {% if daily_spending is defined %}
-        {% for d in daily_spending %}{date:"{{ d[0] }}", amount:{{ d[1] }}}{% if not loop.last %},{% endif %}
+        {% for d in daily_spending %}{date: {{ d[0]|tojson }}, amount: {{ d[1] }}}{% if not loop.last %},{% endif %}
         {% endfor %}
         {% endif %}
     ];
@@ -1069,12 +1069,12 @@
     const allRows = [
         {% for t in rows %}
         {
-            date: "{{ t['Transaction Date'] }}",
-            desc: "{{ t['Description/Narration']|replace('"', '\\"')|replace('\n', ' ')|replace('\r', '') }}",
-            merchant: "{{ t.get('Merchant', '')|replace('"', '\\"') }}",
+            date: {{ t['Transaction Date']|tojson }},
+            desc: {{ t['Description/Narration']|tojson }},
+            merchant: {{ t.get('Merchant', '')|tojson }},
             debit: {{ t.get('Debit', t.get('Amount', 0)) or 0 }},
             credit: {{ t.get('Credit', 0) or 0 }},
-            category: "{{ t['AI Category'] }}"
+            category: {{ t['AI Category']|tojson }}
         }{% if not loop.last %},{% endif %}
         {% endfor %}
     ];

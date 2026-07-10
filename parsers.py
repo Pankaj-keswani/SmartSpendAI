@@ -263,34 +263,67 @@ def parse_pdf_text(pdf):
                     data.append(current_tx)
                     
                 date_str = date_match.group(1)
-                amt_vals = []
+                amt_details = []
                 for a in amounts:
-                    v, _, _ = clean_val(a)
-                    amt_vals.append(v)
+                    v, dr_flag, cr_flag = clean_val(a)
+                    # Check if the raw string in line has CR/DR right next to it (e.g. 150.00Cr)
+                    idx = line.find(a)
+                    if idx != -1:
+                        suffix = line[idx + len(a):idx + len(a) + 3].lower()
+                        if "cr" in suffix:
+                            cr_flag = True
+                        elif "dr" in suffix:
+                            dr_flag = True
+                    amt_details.append((v, dr_flag, cr_flag))
                     
                 debit_val = 0.0
                 credit_val = 0.0
                 balance_val = 0.0
                 
-                line_lower = line.lower()
-                is_credit = any(k in line_lower for k in ("cr", "credit", "deposit", "received", "refund"))
-                is_debit = any(k in line_lower for k in ("dr", "debit", "withdrawal", "paid", "sent", "charges"))
+                # Separate description from date and amounts
+                desc = line
+                desc = desc.replace(date_str, "")
+                for a in amounts:
+                    desc = desc.replace(a, "")
+                desc = re.sub(r"\s+", " ", desc).strip()
+                desc_lower = desc.lower()
                 
-                if len(amt_vals) == 1:
-                    if is_credit:
-                        credit_val = amt_vals[0]
+                # Check for explicit keywords in description
+                is_credit_desc = any(k in desc_lower for k in ("salary", "refund", "interest", "credit", "received", "deposit", "reversed", "dividend", "cashback"))
+                
+                if len(amt_details) == 1:
+                    v, dr_flag, cr_flag = amt_details[0]
+                    if cr_flag or (is_credit_desc and not dr_flag):
+                        credit_val = v
                     else:
-                        debit_val = amt_vals[0]
-                elif len(amt_vals) == 2:
-                    if is_credit:
-                        credit_val = amt_vals[0]
+                        debit_val = v
+                elif len(amt_details) == 2:
+                    tx_val, tx_dr, tx_cr = amt_details[0]
+                    bal_val, _, _ = amt_details[1]
+                    
+                    if tx_cr or (is_credit_desc and not tx_dr):
+                        credit_val = tx_val
                     else:
-                        debit_val = amt_vals[0]
-                    balance_val = amt_vals[1]
-                elif len(amt_vals) >= 3:
-                    debit_val = amt_vals[0]
-                    credit_val = amt_vals[1]
-                    balance_val = amt_vals[2]
+                        debit_val = tx_val
+                    balance_val = bal_val
+                elif len(amt_details) >= 3:
+                    # Usually [Debit, Credit, Balance]
+                    tx1_val, tx1_dr, tx1_cr = amt_details[0]
+                    tx2_val, tx2_dr, tx2_cr = amt_details[1]
+                    bal_val, _, _ = amt_details[2]
+                    
+                    if tx2_val > 0 and tx1_val == 0:
+                        credit_val = tx2_val
+                    elif tx1_val > 0 and tx2_val == 0:
+                        debit_val = tx1_val
+                    else:
+                        if tx2_cr or is_credit_desc:
+                            credit_val = tx2_val
+                            debit_val = tx1_val
+                        else:
+                            debit_val = tx1_val
+                            credit_val = tx2_val
+                    balance_val = bal_val
                     
                 desc = line
                 desc = desc.replace(date_str, "")
