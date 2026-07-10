@@ -244,6 +244,7 @@ def parse_pdf_text(pdf):
     )
     amt_pat = re.compile(r"\b\d{1,3}(?:,\d{3})*\.\d{2}\b")
     current_tx = None
+    raw_lines = []
     
     for page in pdf.pages:
         text = page.extract_text()
@@ -260,13 +261,15 @@ def parse_pdf_text(pdf):
             
             if date_match and amounts:
                 if current_tx:
-                    data.append(current_tx)
+                    raw_lines.append(current_tx)
                     
                 date_str = date_match.group(1)
+                
+                # Extract details for each amount
                 amt_details = []
                 for a in amounts:
                     v, dr_flag, cr_flag = clean_val(a)
-                    # Check if the raw string in line has CR/DR right next to it (e.g. 150.00Cr)
+                    # Suffix check
                     idx = line.find(a)
                     if idx != -1:
                         suffix = line[idx + len(a):idx + len(a) + 3].lower()
@@ -276,55 +279,7 @@ def parse_pdf_text(pdf):
                             dr_flag = True
                     amt_details.append((v, dr_flag, cr_flag))
                     
-                debit_val = 0.0
-                credit_val = 0.0
-                balance_val = 0.0
-                
-                # Separate description from date and amounts
-                desc = line
-                desc = desc.replace(date_str, "")
-                for a in amounts:
-                    desc = desc.replace(a, "")
-                desc = re.sub(r"\s+", " ", desc).strip()
-                desc_lower = desc.lower()
-                
-                # Check for explicit keywords in description
-                is_credit_desc = any(k in desc_lower for k in ("salary", "refund", "interest", "credit", "received", "deposit", "reversed", "dividend", "cashback"))
-                
-                if len(amt_details) == 1:
-                    v, dr_flag, cr_flag = amt_details[0]
-                    if cr_flag or (is_credit_desc and not dr_flag):
-                        credit_val = v
-                    else:
-                        debit_val = v
-                elif len(amt_details) == 2:
-                    tx_val, tx_dr, tx_cr = amt_details[0]
-                    bal_val, _, _ = amt_details[1]
-                    
-                    if tx_cr or (is_credit_desc and not tx_dr):
-                        credit_val = tx_val
-                    else:
-                        debit_val = tx_val
-                    balance_val = bal_val
-                elif len(amt_details) >= 3:
-                    # Usually [Debit, Credit, Balance]
-                    tx1_val, tx1_dr, tx1_cr = amt_details[0]
-                    tx2_val, tx2_dr, tx2_cr = amt_details[1]
-                    bal_val, _, _ = amt_details[2]
-                    
-                    if tx2_val > 0 and tx1_val == 0:
-                        credit_val = tx2_val
-                    elif tx1_val > 0 and tx2_val == 0:
-                        debit_val = tx1_val
-                    else:
-                        if tx2_cr or is_credit_desc:
-                            credit_val = tx2_val
-                            debit_val = tx1_val
-                        else:
-                            debit_val = tx1_val
-                            credit_val = tx2_val
-                    balance_val = bal_val
-                    
+                # Clean description
                 desc = line
                 desc = desc.replace(date_str, "")
                 for a in amounts:
@@ -334,9 +289,7 @@ def parse_pdf_text(pdf):
                 current_tx = {
                     "Date": date_str,
                     "Description": desc,
-                    "Debit": debit_val,
-                    "Credit": credit_val,
-                    "Balance": balance_val
+                    "amt_details": amt_details
                 }
             else:
                 if current_tx:
@@ -344,12 +297,105 @@ def parse_pdf_text(pdf):
                         current_tx["Description"] += " " + line
                         
     if current_tx:
-        data.append(current_tx)
+        raw_lines.append(current_tx)
         
-    if not data:
+    if not raw_lines:
         return None
         
-    return pd.DataFrame(data)
+    # Resolve type and amounts for each transaction
+    processed_txs = []
+    for tx in raw_lines:
+        amt_details = tx["amt_details"]
+        desc_lower = tx["Description"].lower()
+        
+        # Guesses based on description keywords
+        is_credit_desc = any(k in desc_lower for k in ("salary", "refund", "interest", "credit", "received", "deposit", "reversed", "dividend", "cashback"))
+        if "credit card" in desc_lower or "cc payment" in desc_lower:
+            is_credit_desc = False
+            
+        debit_val = 0.0
+        credit_val = 0.0
+        balance_val = 0.0
+        
+        if len(amt_details) == 1:
+            v, dr_flag, cr_flag = amt_details[0]
+            if cr_flag or (is_credit_desc and not dr_flag):
+                credit_val = v
+            else:
+                debit_val = v
+        elif len(amt_details) == 2:
+            tx_val, tx_dr, tx_cr = amt_details[0]
+            bal_val, _, _ = amt_details[1]
+            
+            if tx_cr or (is_credit_desc and not tx_dr):
+                credit_val = tx_val
+            else:
+                debit_val = tx_val
+            balance_val = bal_val
+        elif len(amt_details) >= 3:
+            tx1_val, tx1_dr, tx1_cr = amt_details[0]
+            tx2_val, tx2_dr, tx2_cr = amt_details[1]
+            bal_val, _, _ = amt_details[2]
+            
+            if tx2_val > 0 and tx1_val == 0:
+                credit_val = tx2_val
+            elif tx1_val > 0 and tx2_val == 0:
+                debit_val = tx1_val
+            else:
+                if tx2_cr or is_credit_desc:
+                    credit_val = tx2_val
+                    debit_val = tx1_val
+                else:
+                    debit_val = tx1_val
+                    credit_val = tx2_val
+            balance_val = bal_val
+            
+        processed_txs.append({
+            "Date": tx["Date"],
+            "Description": tx["Description"],
+            "Debit": debit_val,
+            "Credit": credit_val,
+            "Balance": balance_val,
+            "TxAmt": amt_details[0][0] if amt_details else 0.0
+        })
+        
+    # Refine Debit/Credit using balance differences if possible
+    is_reverse = False
+    if len(processed_txs) >= 2:
+        try:
+            d1 = pd.to_datetime(processed_txs[0]["Date"], errors="coerce", dayfirst=True)
+            dn = pd.to_datetime(processed_txs[-1]["Date"], errors="coerce", dayfirst=True)
+            if pd.notna(d1) and pd.notna(dn) and d1 > dn:
+                is_reverse = True
+        except Exception:
+            pass
+            
+    if is_reverse:
+        processed_txs.reverse()
+        
+    for i in range(1, len(processed_txs)):
+        prev_bal = processed_txs[i-1]["Balance"]
+        curr_bal = processed_txs[i]["Balance"]
+        tx_amt = processed_txs[i]["TxAmt"]
+        
+        # Only verify if both balances are non-zero
+        if prev_bal > 0.05 and curr_bal > 0.05:
+            diff = curr_bal - prev_bal
+            if diff > 0.05:
+                processed_txs[i]["Credit"] = tx_amt
+                processed_txs[i]["Debit"] = 0.0
+            elif diff < -0.05:
+                processed_txs[i]["Debit"] = tx_amt
+                processed_txs[i]["Credit"] = 0.0
+                
+    if is_reverse:
+        processed_txs.reverse()
+        
+    # Remove temp TxAmt key
+    for tx in processed_txs:
+        tx.pop("TxAmt", None)
+        
+    return pd.DataFrame(processed_txs)
 
 def process_dataframe(df):
     """Normalize raw pandas DataFrame parsed from CSV, Excel, or DOCX."""
