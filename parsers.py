@@ -543,12 +543,20 @@ def parse_statement(file_path, password=None):
     # Standardize columns
     if "Debit" not in df.columns:
         df["Debit"] = 0.0
+    else:
+        df["Debit"] = df["Debit"].fillna(0.0)
+
     if "Credit" not in df.columns:
         df["Credit"] = 0.0
+    else:
+        df["Credit"] = df["Credit"].fillna(0.0)
+
     if "Balance" not in df.columns:
         df["Balance"] = 0.0
+    else:
+        df["Balance"] = df["Balance"].fillna(0.0)
         
     # Standardize Amount format: Debit is positive, Credit is negative
-    df["Amount"] = df.apply(lambda r: r["Debit"] if r["Debit"] > 0 else -r["Credit"], axis=1)
+    df["Amount"] = df.apply(lambda r: r["Debit"] if r["Debit"] > 0 else -r["Credit"], axis=1).fillna(0.0)
     
     return df[["Date", "Description", "Debit", "Credit", "Balance", "Amount"]]

@@ -612,8 +612,16 @@ def _build_dashboard_data(df: pd.DataFrame) -> dict:
     # ── Smart insights ──
     insights = generate_insights(df)
 
-    # ── Rows for template ──
-    rows = df.rename(columns={
+    # Clean up NaNs before converting to records
+    df_clean = df.copy()
+    df_clean["Debit"] = df_clean["Debit"].fillna(0.0)
+    df_clean["Credit"] = df_clean["Credit"].fillna(0.0)
+    df_clean["Balance"] = df_clean["Balance"].fillna(0.0)
+    df_clean["Amount"] = df_clean["Amount"].fillna(0.0)
+    df_clean["Merchant"] = df_clean["Merchant"].fillna("—")
+    df_clean["Category"] = df_clean["Category"].fillna("Others")
+
+    rows = df_clean.rename(columns={
         "Date": "Transaction Date",
         "Description": "Description/Narration",
         "Category": "AI Category",
