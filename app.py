@@ -671,7 +671,8 @@ def analyze():
         # Cache the file for later retry
         file_id = str(uuid.uuid4())
         cached_path = os.path.join("uploads", f"{file_id}{ext}")
-        os.rename(path, cached_path)
+        import shutil
+        shutil.move(path, cached_path)
         return jsonify({"needs_password": True, "file_id": file_id})
     except WrongPassword:
         _safe_delete(path)
@@ -779,14 +780,6 @@ def _safe_delete(path: str):
     except OSError:
         pass
 
-
-# ──────────────────────────────────────────────────────────
-# Error Handler
-# ──────────────────────────────────────────────────────────
-@app.errorhandler(500)
-def handle_500(e):
-    import traceback
-    return f"<pre>{traceback.format_exc()}</pre>", 500
 
 
 # ──────────────────────────────────────────────────────────
