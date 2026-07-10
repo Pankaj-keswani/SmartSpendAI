@@ -581,14 +581,17 @@ def _build_dashboard_data(df: pd.DataFrame) -> dict:
     # ── Top merchants (top 10 by absolute spend) ──
     merchant_spend = (
         df.groupby("Merchant")["Amount"]
-        .apply(lambda x: round(x.abs().sum(), 2))
+        .agg(
+            total=lambda x: round(x.abs().sum(), 2),
+            count="count"
+        )
         .reset_index()
-        .sort_values("Amount", ascending=False)
+        .sort_values("total", ascending=False)
         .head(10)
     )
 
     # ── Daily spending ──
-    daily_data = {}
+    daily_data = []
     if "Date" in df.columns:
         try:
             dates = pd.to_datetime(df["Date"], errors="coerce", dayfirst=True)
@@ -599,9 +602,10 @@ def _build_dashboard_data(df: pd.DataFrame) -> dict:
                 daily = (
                     tmp.groupby("_date_str")["Amount"]
                     .apply(lambda x: round(x.abs().sum(), 2))
-                    .to_dict()
+                    .reset_index()
+                    .sort_values("_date_str")
                 )
-                daily_data = dict(sorted(daily.items()))
+                daily_data = daily.values.tolist()
         except Exception:
             pass
 
