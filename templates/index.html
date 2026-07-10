@@ -3,350 +3,1640 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartSpend AI | Pro Analytics</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <title>SmartSpend AI — Bank Statement Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* ═══════════════════════════════════════════
+           DESIGN TOKENS
+           ═══════════════════════════════════════════ */
         :root {
-            --primary: #6366f1;
-            --secondary: #a855f7;
-            --accent: #00f2ff;
-            --bg-dark: #020617;
-            --glass: rgba(255, 255, 255, 0.05);
-            --glass-border: rgba(255, 255, 255, 0.12);
+            --bg: #0a0f1e;
+            --bg-elevated: #0e1529;
+            --surface: rgba(15, 23, 42, 0.8);
+            --surface-hover: rgba(20, 30, 55, 0.9);
+            --border: rgba(255, 255, 255, 0.06);
+            --border-hover: rgba(255, 255, 255, 0.12);
+            --primary: #3b82f6;
+            --primary-dim: rgba(59, 130, 246, 0.12);
+            --violet: #8b5cf6;
+            --violet-dim: rgba(139, 92, 246, 0.1);
+            --success: #10b981;
+            --success-dim: rgba(16, 185, 129, 0.1);
+            --error: #ef4444;
+            --error-dim: rgba(239, 68, 68, 0.1);
+            --warning: #f59e0b;
+            --warning-dim: rgba(245, 158, 11, 0.1);
+            --text-primary: #f1f5f9;
+            --text-secondary: #64748b;
+            --text-tertiary: #475569;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* ═══════════════════════════════════════════
+           RESET & BASE
+           ═══════════════════════════════════════════ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
         body {
-            font-family: 'Poppins', sans-serif;
-            background: var(--bg-dark);
-            color: white;
-            overflow-x: hidden;
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text-primary);
             min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
         }
 
-        /* 🌌 Dynamic Animated Background */
-        .universe {
+        /* Subtle top-level ambient glow — not particles, just gentle atmosphere */
+        body::before {
+            content: '';
             position: fixed;
-            inset: 0;
-            background: radial-gradient(circle at 50% 50%, #0f172a, #020617);
-            z-index: -10;
-        }
-
-        .blob {
-            position: fixed;
-            width: 500px; height: 500px;
-            border-radius: 50%;
-            filter: blur(120px);
-            opacity: 0.35;
-            z-index: -5;
-            animation: moveBlobs 25s infinite alternate ease-in-out;
-        }
-        .blob-1 { background: var(--primary); top: -10%; left: -10%; }
-        .blob-2 { background: var(--secondary); bottom: -10%; right: -10%; }
-
-        @keyframes moveBlobs {
-            from { transform: translate(0, 0) scale(1); }
-            to { transform: translate(150px, 80px) scale(1.15); }
-        }
-
-        /* ✨ Cursor Glow */
-        #cursor-glow {
-            position: fixed;
-            width: 450px; height: 450px;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.18), transparent 70%);
-            border-radius: 50%;
+            top: -40%;
+            left: -20%;
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(ellipse, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
             pointer-events: none;
-            transform: translate(-50%, -50%);
-            z-index: -3;
+            z-index: 0;
         }
-
-        /* ☄️ Falling Elements */
-        .particle {
+        body::after {
+            content: '';
             position: fixed;
-            top: -50px;
-            color: var(--accent);
-            opacity: 0.4;
+            bottom: -30%;
+            right: -20%;
+            width: 70%;
+            height: 70%;
+            background: radial-gradient(ellipse, rgba(139, 92, 246, 0.05) 0%, transparent 70%);
             pointer-events: none;
-            animation: fall linear forwards;
-            z-index: -2;
-        }
-        @keyframes fall {
-            to { transform: translateY(110vh) rotate(360deg); }
+            z-index: 0;
         }
 
-        /* 🚀 Hero Section */
-        .hero {
-            padding: 80px 5%;
+        /* ═══════════════════════════════════════════
+           NAVBAR
+           ═══════════════════════════════════════════ */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
             display: flex;
-            flex-direction: column;
             align-items: center;
+            justify-content: space-between;
+            padding: 0 clamp(20px, 5vw, 64px);
+            height: 64px;
+            background: rgba(10, 15, 30, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .navbar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+        .navbar-logo .logo-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--violet));
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+        }
+
+        .navbar-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: var(--success-dim);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--success);
+        }
+        .navbar-badge svg {
+            width: 12px;
+            height: 12px;
+            flex-shrink: 0;
+        }
+
+        /* ═══════════════════════════════════════════
+           LAYOUT
+           ═══════════════════════════════════════════ */
+        .page-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 clamp(20px, 5vw, 64px);
+        }
+
+        /* ═══════════════════════════════════════════
+           HERO SECTION
+           ═══════════════════════════════════════════ */
+        .hero {
             text-align: center;
+            padding: 80px 0 24px;
+        }
+
+        .hero-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: var(--primary-dim);
+            border: 1px solid rgba(59, 130, 246, 0.12);
+            border-radius: 100px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--primary);
+            margin-bottom: 24px;
+        }
+        .hero-eyebrow .dot {
+            width: 6px;
+            height: 6px;
+            background: var(--primary);
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
         }
 
         .hero h1 {
-            font-size: clamp(2.5rem, 8vw, 4.5rem);
+            font-size: clamp(2rem, 5vw, 3.25rem);
             font-weight: 800;
-            background: linear-gradient(135deg, #fff 30%, var(--accent), var(--secondary));
+            letter-spacing: -0.035em;
+            line-height: 1.15;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, var(--primary), var(--violet));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 15px;
-            filter: drop-shadow(0 0 15px rgba(0, 242, 255, 0.2));
+            background-clip: text;
         }
 
-        .hero p {
-            color: #94a3b8;
-            max-width: 650px;
-            font-size: 1.1rem;
-            margin-bottom: 50px;
+        .hero-subtitle {
+            font-size: clamp(0.95rem, 1.8vw, 1.125rem);
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin: 0 auto;
+            line-height: 1.7;
+            font-weight: 400;
         }
 
-        /* 💳 The Premium Upload Card - Redesigned */
-        .upload-container {
-            width: 100%;
-            max-width: 520px;
-            padding: 4px;
-            background: linear-gradient(135deg, var(--glass-border), transparent, var(--glass-border));
-            border-radius: 32px;
-            position: relative;
-            transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            margin-bottom: 60px;
-        }
-        .upload-container:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+        /* ═══════════════════════════════════════════
+           UPLOAD SECTION
+           ═══════════════════════════════════════════ */
+        .upload-section {
+            display: flex;
+            justify-content: center;
+            padding: 48px 0 32px;
         }
 
         .upload-card {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(30px);
-            border-radius: 28px;
-            padding: 45px 30px;
+            width: 100%;
+            max-width: 540px;
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .upload-card:hover {
+            border-color: var(--border-hover);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Drop Zone */
+        .drop-zone {
+            position: relative;
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-lg);
+            padding: 48px 24px;
             text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: transparent;
+        }
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--primary);
+            background: var(--primary-dim);
+        }
+        .drop-zone.drag-over {
+            border-style: solid;
+            transform: scale(1.01);
+        }
+
+        .drop-zone-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(59, 130, 246, 0.08);
+            border-radius: var(--radius-md);
+            color: var(--primary);
+        }
+        .drop-zone-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .drop-zone-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .drop-zone-subtitle {
+            font-size: 0.825rem;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        /* File Type Badges */
+        .file-types {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .file-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            transition: all 0.25s ease;
+        }
+        .file-badge:hover {
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--text-primary);
+            border-color: var(--border-hover);
+        }
+        .file-badge .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .file-badge .badge-dot.pdf { background: #ef4444; }
+        .file-badge .badge-dot.csv { background: #10b981; }
+        .file-badge .badge-dot.xlsx { background: #3b82f6; }
+        .file-badge .badge-dot.docx { background: #8b5cf6; }
+
+        .lock-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            background: var(--warning-dim);
+            border: 1px solid rgba(245, 158, 11, 0.12);
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--warning);
+        }
+        .lock-badge svg {
+            width: 11px;
+            height: 11px;
+        }
+
+        /* File Preview (shown after selection) */
+        .file-preview {
+            display: none;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 16px;
+            background: rgba(59, 130, 246, 0.06);
+            border: 1px solid rgba(59, 130, 246, 0.12);
+            border-radius: var(--radius-md);
+            margin-top: 16px;
+        }
+        .file-preview.visible {
+            display: flex;
+        }
+
+        .file-preview-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary-dim);
+            border-radius: var(--radius-sm);
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--primary);
+            flex-shrink: 0;
+            text-transform: uppercase;
+        }
+
+        .file-preview-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .file-preview-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-preview-size {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .file-remove-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.12);
+            border-radius: var(--radius-sm);
+            color: var(--error);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        .file-remove-btn:hover {
+            background: var(--error-dim);
+        }
+        .file-remove-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Submit Button */
+        .analyze-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 14px 24px;
+            margin-top: 20px;
+            background: linear-gradient(135deg, var(--primary), var(--violet));
+            border: none;
+            border-radius: var(--radius-md);
+            font-family: var(--font);
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
         }
-
-        .scan-bar {
+        .analyze-btn::before {
+            content: '';
             position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 2px;
-            background: var(--accent);
-            box-shadow: 0 0 15px var(--accent);
-            animation: scanLoop 4s infinite linear;
-            opacity: 0.6;
+            inset: 0;
+            background: linear-gradient(135deg, var(--violet), var(--primary));
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
-        @keyframes scanLoop {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
-        }
-
-        .drop-zone {
-            border: 2px dashed rgba(255, 255, 255, 0.15);
-            border-radius: 20px;
-            padding: 40px 20px;
-            cursor: pointer;
-            transition: 0.3s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .drop-zone:hover {
-            border-color: var(--accent);
-            background: rgba(0, 242, 255, 0.03);
-        }
-
-        /* 📂 Custom Select Button */
-        .select-file-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid var(--accent);
-            padding: 10px 20px;
-            border-radius: 12px;
-            margin-top: 15px;
-            font-weight: 600;
-            color: var(--accent);
-            transition: 0.3s;
-        }
-        .drop-zone:hover .select-file-btn {
-            background: var(--accent);
-            color: var(--bg-dark);
-        }
-
-        .analyze-btn {
-            width: 100%;
-            margin-top: 25px;
-            padding: 16px;
-            border: none;
-            border-radius: 16px;
-            background: linear-gradient(90deg, var(--primary), var(--secondary));
-            color: white;
-            font-weight: 700;
-            font-size: 1rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            cursor: pointer;
-            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
-            transition: 0.3s;
+        .analyze-btn:hover::before {
+            opacity: 1;
         }
         .analyze-btn:hover {
-            box-shadow: 0 0 40px var(--primary);
-            transform: scale(1.02);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+        }
+        .analyze-btn:active {
+            transform: translateY(0);
+        }
+        .analyze-btn span,
+        .analyze-btn svg {
+            position: relative;
+            z-index: 1;
+        }
+        .analyze-btn svg {
+            width: 16px;
+            height: 16px;
         }
 
-        /* 🛠 Feature Blocks - Vertical Order */
+        /* ═══════════════════════════════════════════
+           HOW IT WORKS
+           ═══════════════════════════════════════════ */
+        .how-it-works {
+            padding: 80px 0 48px;
+        }
+        .section-label {
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--primary);
+            margin-bottom: 12px;
+        }
+        .section-title {
+            text-align: center;
+            font-size: clamp(1.5rem, 3vw, 2rem);
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            color: var(--text-primary);
+            margin-bottom: 48px;
+        }
+
+        .steps-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            position: relative;
+        }
+
+        .step-card {
+            text-align: center;
+            padding: 32px 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            transition: all 0.35s ease;
+            opacity: 0;
+            transform: translateY(24px);
+        }
+        .step-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .step-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-hover);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: var(--primary-dim);
+            border-radius: 50%;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 16px;
+        }
+        .step-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+        .step-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .step-icon {
+            font-size: 1.75rem;
+            margin-bottom: 12px;
+        }
+
+        /* Connector lines between steps — desktop only */
+        .step-connector {
+            display: none;
+        }
+
+        @media (min-width: 768px) {
+            .steps-row {
+                gap: 16px;
+            }
+            .step-connector {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--text-tertiary);
+            }
+            .step-connector svg {
+                width: 20px;
+                height: 20px;
+                opacity: 0.4;
+            }
+            .steps-row {
+                grid-template-columns: 1fr auto 1fr auto 1fr;
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+           FEATURES GRID
+           ═══════════════════════════════════════════ */
+        .features-section {
+            padding: 48px 0 80px;
+        }
+
         .features-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            width: 100%;
-            max-width: 700px;
-            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
         }
 
-        .feature-box {
+        .feature-card {
+            padding: 28px 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-hover);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .feature-icon {
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
-            gap: 25px;
-            padding: 30px;
-            background: var(--glass);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            backdrop-filter: blur(10px);
-            text-align: left;
-            transition: 0.3s;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            margin-bottom: 16px;
+            font-size: 1.15rem;
         }
-        .feature-box:hover {
-            background: rgba(255, 255, 255, 0.08);
-            transform: translateX(10px);
-            border-color: var(--accent);
-        }
-        .feature-box .icon { font-size: 2.2rem; }
-        .feature-box h3 { font-size: 1.2rem; color: #fff; margin-bottom: 4px; }
-        .feature-box p { font-size: 0.9rem; color: #94a3b8; line-height: 1.5; }
+        .feature-icon.blue { background: var(--primary-dim); }
+        .feature-icon.violet { background: var(--violet-dim); }
+        .feature-icon.green { background: var(--success-dim); }
+        .feature-icon.red { background: var(--error-dim); }
+        .feature-icon.yellow { background: var(--warning-dim); }
 
-        /* ⏳ Loader Overlay */
-        #loader {
+        .feature-card h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+        .feature-card p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ═══════════════════════════════════════════
+           FOOTER
+           ═══════════════════════════════════════════ */
+        .footer {
+            text-align: center;
+            padding: 32px 0;
+            border-top: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+        }
+        .footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .footer a:hover {
+            color: var(--primary);
+        }
+
+        /* ═══════════════════════════════════════════
+           TOAST NOTIFICATION
+           ═══════════════════════════════════════════ */
+        .toast {
+            position: fixed;
+            top: 80px;
+            right: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 20px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            z-index: 10000;
+            transform: translateX(calc(100% + 24px));
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            max-width: 380px;
+        }
+        .toast.visible {
+            transform: translateX(0);
+        }
+        .toast-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: var(--error-dim);
+            color: var(--error);
+            flex-shrink: 0;
+            font-size: 0.65rem;
+            font-weight: 800;
+        }
+
+        /* ═══════════════════════════════════════════
+           PASSWORD MODAL
+           ═══════════════════════════════════════════ */
+        .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(2, 6, 23, 0.98);
+            z-index: 5000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 8, 18, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .modal-card {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 420px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 36px 32px;
+            animation: modal-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes modal-enter {
+            from {
+                opacity: 0;
+                transform: translateY(16px) scale(0.97);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+        }
+        .modal-close svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .modal-lock-icon {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--warning-dim);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            font-size: 1.25rem;
+        }
+
+        .modal-card h2 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            letter-spacing: -0.02em;
+        }
+        .modal-card .modal-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .password-field {
+            position: relative;
+            margin-bottom: 12px;
+        }
+        .password-field input {
+            width: 100%;
+            padding: 12px 44px 12px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: var(--font);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+        .password-field input:focus {
+            border-color: var(--primary);
+        }
+        .password-field input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            transition: color 0.2s ease;
+        }
+        .password-toggle:hover {
+            color: var(--text-secondary);
+        }
+        .password-toggle svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .modal-error {
+            font-size: 0.8rem;
+            color: var(--error);
+            margin-bottom: 12px;
+            display: none;
+        }
+        .modal-error.visible {
+            display: block;
+            animation: shake 0.4s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+
+        .unlock-btn {
+            width: 100%;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--primary), var(--violet));
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: var(--font);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .unlock-btn:hover {
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.25);
+            transform: translateY(-1px);
+        }
+        .unlock-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* ═══════════════════════════════════════════
+           LOADING OVERLAY
+           ═══════════════════════════════════════════ */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 8000;
             display: none;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
-            z-index: 9999;
+            justify-content: center;
+            background: rgba(5, 8, 18, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
         }
-        .spinner {
-            width: 60px; height: 60px;
-            border: 5px solid rgba(255,255,255,0.1);
-            border-top: 5px solid var(--accent);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+        .loading-overlay.visible {
+            display: flex;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
 
-        footer { padding: 60px 0; opacity: 0.6; text-align: center; font-size: 0.85rem; }
+        /* Pulsing dots spinner */
+        .loader-dots {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 32px;
+        }
+        .loader-dots span {
+            width: 10px;
+            height: 10px;
+            background: var(--primary);
+            border-radius: 50%;
+            animation: dot-pulse 1.4s ease-in-out infinite;
+        }
+        .loader-dots span:nth-child(2) {
+            animation-delay: 0.15s;
+            background: #6366f1;
+        }
+        .loader-dots span:nth-child(3) {
+            animation-delay: 0.3s;
+            background: var(--violet);
+        }
+        @keyframes dot-pulse {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1.1); opacity: 1; }
+        }
+
+        .loading-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 32px;
+            animation: text-fade 2s ease-in-out infinite;
+        }
+        @keyframes text-fade {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .loading-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 340px;
+            width: 100%;
+        }
+        .loading-step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            transition: all 0.5s ease;
+        }
+        .loading-step.active {
+            color: var(--text-primary);
+        }
+        .loading-step.done {
+            color: var(--success);
+        }
+        .loading-step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            flex-shrink: 0;
+            transition: all 0.4s ease;
+        }
+        .loading-step.active .loading-step-dot {
+            background: var(--primary);
+            box-shadow: 0 0 8px var(--primary);
+            animation: dot-pulse 1.2s ease-in-out infinite;
+        }
+        .loading-step.done .loading-step-dot {
+            background: var(--success);
+        }
+
+        /* ═══════════════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════════════ */
+        @media (max-width: 1024px) {
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero {
+                padding: 48px 0 16px;
+            }
+
+            .upload-section {
+                padding: 32px 0 16px;
+            }
+
+            .upload-card {
+                padding: 24px;
+            }
+
+            .drop-zone {
+                padding: 36px 16px;
+            }
+
+            .steps-row {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            .step-connector {
+                display: none !important;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .how-it-works {
+                padding: 48px 0 32px;
+            }
+
+            .features-section {
+                padding: 32px 0 56px;
+            }
+
+            .navbar-badge span.badge-text {
+                display: none;
+            }
+
+            .toast {
+                right: 12px;
+                left: 12px;
+                max-width: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero h1 {
+                font-size: 1.75rem;
+            }
+            .hero-subtitle {
+                font-size: 0.9rem;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <div class="universe"></div>
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div id="cursor-glow"></div>
-
-    <nav style="display: flex; justify-content: space-between; padding: 30px 8%; z-index: 10;">
-        <div style="font-weight: 800; font-size: 1.5rem;">💸 SmartSpend <span style="color:var(--accent)">AI</span></div>
-        <div style="opacity: 0.7; font-size: 0.9rem;">By Pankaj Keswani</div>
+    <!-- ═══════════ NAVBAR ═══════════ -->
+    <nav class="navbar">
+        <a href="/" class="navbar-logo">
+            <div class="logo-icon">📊</div>
+            SmartSpend AI
+        </a>
+        <div class="navbar-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <span class="badge-text">Secure & Private</span>
+        </div>
     </nav>
 
-    <div class="hero">
-        <h1>AI Expense Intelligence</h1>
-        <p>Analyze your bank statement with high-precision AI. Secure, private, and insightful.</p>
+    <div class="page-wrapper">
+        <!-- ═══════════ HERO ═══════════ -->
+        <section class="hero container">
+            <div class="hero-eyebrow">
+                <span class="dot"></span>
+                AI-Powered Analysis
+            </div>
+            <h1>Analyze Your <span class="gradient-text">Bank Statement</span></h1>
+            <p class="hero-subtitle">
+                AI-powered expense intelligence. Upload any bank statement and get instant, accurate insights.
+            </p>
+        </section>
 
-        <div class="upload-container">
+        <!-- ═══════════ UPLOAD CARD ═══════════ -->
+        <section class="upload-section container">
             <div class="upload-card">
-                <div class="scan-bar"></div>
-                <form id="uploadForm" action="/analyze" method="POST" enctype="multipart/form-data">
-                    <label for="fileInput" class="drop-zone">
-                        <div style="font-size: 3.5rem; margin-bottom: 10px;">📊</div>
-                        <p id="statusText">Drop your Bank Statement here</p>
-                        <div class="select-file-btn">📁 Click to select file</div>
-                        <input type="file" id="fileInput" name="file" hidden required onchange="fileSelected()">
-                    </label>
-                    <button type="submit" class="analyze-btn">✨ Start Analysis</button>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-zone-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                        </div>
+                        <div class="drop-zone-title">Drop your statement here</div>
+                        <div class="drop-zone-subtitle">or click to browse files</div>
+
+                        <div class="file-types">
+                            <span class="file-badge"><span class="badge-dot pdf"></span>PDF</span>
+                            <span class="file-badge"><span class="badge-dot csv"></span>CSV</span>
+                            <span class="file-badge"><span class="badge-dot xlsx"></span>XLSX</span>
+                            <span class="file-badge"><span class="badge-dot docx"></span>DOCX</span>
+                        </div>
+
+                        <div class="lock-badge">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            Password-protected PDFs supported
+                        </div>
+
+                        <input type="file" id="fileInput" name="file" accept=".pdf,.csv,.xlsx,.xls,.docx" hidden>
+                    </div>
+
+                    <!-- File Preview -->
+                    <div class="file-preview" id="filePreview">
+                        <div class="file-preview-icon" id="fileIcon">PDF</div>
+                        <div class="file-preview-info">
+                            <div class="file-preview-name" id="fileName">document.pdf</div>
+                            <div class="file-preview-size" id="fileSize">2.4 MB</div>
+                        </div>
+                        <button type="button" class="file-remove-btn" id="removeFile" aria-label="Remove file">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <button type="submit" class="analyze-btn" id="analyzeBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        <span>Analyze Statement</span>
+                    </button>
                 </form>
             </div>
-        </div>
+        </section>
 
-        <div class="features-grid">
-            <div class="feature-box">
-                <div class="icon">🤖</div>
-                <div>
-                    <h3>Smart Categorization</h3>
-                    <p>AI automatically identifies merchants like Swiggy, Amazon, and more.</p>
+        <!-- ═══════════ HOW IT WORKS ═══════════ -->
+        <section class="how-it-works container">
+            <div class="section-label">How It Works</div>
+            <h2 class="section-title">Three steps to clarity</h2>
+
+            <div class="steps-row">
+                <div class="step-card" data-step="1">
+                    <div class="step-icon">📄</div>
+                    <div class="step-number">1</div>
+                    <h3>Upload Statement</h3>
+                    <p>Drop any bank statement — PDF, CSV, Excel, or Word format.</p>
+                </div>
+
+                <div class="step-connector">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </div>
+
+                <div class="step-card" data-step="2">
+                    <div class="step-icon">🧠</div>
+                    <div class="step-number">2</div>
+                    <h3>AI Analysis</h3>
+                    <p>Our engine reads, extracts, and categorizes every transaction automatically.</p>
+                </div>
+
+                <div class="step-connector">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </div>
+
+                <div class="step-card" data-step="3">
+                    <div class="step-icon">📊</div>
+                    <div class="step-number">3</div>
+                    <h3>Get Insights</h3>
+                    <p>Interactive charts, spending breakdowns, and exportable reports — instantly.</p>
                 </div>
             </div>
-            <div class="feature-box">
-                <div class="icon">🔒</div>
-                <div>
+        </section>
+
+        <!-- ═══════════ FEATURES GRID ═══════════ -->
+        <section class="features-section container">
+            <div class="section-label">Features</div>
+            <h2 class="section-title">Built for your finances</h2>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon blue">🤖</div>
+                    <h3>Smart AI Categorization</h3>
+                    <p>Automatically identifies merchants like Swiggy, Amazon, Uber, and categorizes each transaction.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon green">🏦</div>
+                    <h3>All Bank Formats</h3>
+                    <p>Works with HDFC, SBI, ICICI, Axis, and most Indian & international bank statement formats.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon yellow">🔐</div>
+                    <h3>Password-Protected PDFs</h3>
+                    <p>Securely unlock and analyze password-protected bank statements without compromising data.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon violet">🛡️</div>
                     <h3>Privacy First</h3>
-                    <p>On-device processing keeps your data 100% private and secure.</p>
+                    <p>All processing happens server-side with no data storage. Your statements are never saved or shared.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon red">📥</div>
+                    <h3>Export & Download</h3>
+                    <p>Download categorized data as CSV or take a clean PDF report of your spending analysis.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon blue">📈</div>
+                    <h3>Detailed Analytics</h3>
+                    <p>Interactive charts and visual breakdowns showing exactly where your money goes each month.</p>
                 </div>
             </div>
-            <div class="feature-box">
-                <div class="icon">📈</div>
-                <div>
-                    <h3>Deep Analytics</h3>
-                    <p>Turn raw numbers into interactive charts to track spending patterns.</p>
-                </div>
-            </div>
-        </div>
+        </section>
     </div>
 
-    <div id="loader">
-        <div class="spinner"></div>
-        <h2 style="margin-top: 25px; letter-spacing: 2px; color: var(--accent);">AI PROCESSING...</h2>
-    </div>
-
-    <footer>
-        © 2026 SmartSpend AI • Built by Pankaj Keswani
+    <!-- ═══════════ FOOTER ═══════════ -->
+    <footer class="footer container">
+        <p>© {{ 2026 }} SmartSpend AI — Built by <a href="#">Pankaj Keswani</a></p>
     </footer>
 
+    <!-- ═══════════ TOAST ═══════════ -->
+    <div class="toast" id="toast">
+        <div class="toast-icon">!</div>
+        <span id="toastMessage">Something went wrong.</span>
+    </div>
+
+    <!-- ═══════════ PASSWORD MODAL ═══════════ -->
+    <div class="modal-overlay" id="passwordModal">
+        <div class="modal-backdrop" id="modalBackdrop"></div>
+        <div class="modal-card">
+            <button class="modal-close" id="modalClose" aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+
+            <div class="modal-lock-icon">🔒</div>
+            <h2>Password Required</h2>
+            <p class="modal-subtitle">This PDF is password-protected. Enter the password to continue analysis.</p>
+
+            <form id="passwordForm">
+                <div class="password-field">
+                    <input type="password" id="pdfPassword" placeholder="Enter PDF password" autocomplete="off" required>
+                    <button type="button" class="password-toggle" id="passwordToggle" aria-label="Toggle password visibility">
+                        <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-error" id="modalError">Wrong password. Try again.</div>
+                <button type="submit" class="unlock-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                    </svg>
+                    Unlock & Analyze
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══════════ LOADING OVERLAY ═══════════ -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <div class="loading-text">Analyzing your statement...</div>
+        <div class="loading-steps">
+            <div class="loading-step" data-idx="0">
+                <div class="loading-step-dot"></div>
+                <span>Reading document</span>
+            </div>
+            <div class="loading-step" data-idx="1">
+                <div class="loading-step-dot"></div>
+                <span>Extracting transactions</span>
+            </div>
+            <div class="loading-step" data-idx="2">
+                <div class="loading-step-dot"></div>
+                <span>Categorizing expenses</span>
+            </div>
+            <div class="loading-step" data-idx="3">
+                <div class="loading-step-dot"></div>
+                <span>Generating insights</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ JAVASCRIPT ═══════════ -->
     <script>
-        // Mouse Glow
-        const glow = document.getElementById('cursor-glow');
-        document.addEventListener('mousemove', (e) => {
-            glow.style.left = e.clientX + 'px';
-            glow.style.top = e.clientY + 'px';
+    (function() {
+        'use strict';
+
+        /* ── Element References ── */
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const filePreview = document.getElementById('filePreview');
+        const fileNameEl = document.getElementById('fileName');
+        const fileSizeEl = document.getElementById('fileSize');
+        const fileIconEl = document.getElementById('fileIcon');
+        const removeFileBtn = document.getElementById('removeFile');
+        const uploadForm = document.getElementById('uploadForm');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const passwordModal = document.getElementById('passwordModal');
+        const passwordForm = document.getElementById('passwordForm');
+        const pdfPasswordInput = document.getElementById('pdfPassword');
+        const modalError = document.getElementById('modalError');
+        const modalClose = document.getElementById('modalClose');
+        const modalBackdrop = document.getElementById('modalBackdrop');
+        const passwordToggle = document.getElementById('passwordToggle');
+
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+
+        let storedFileId = null;
+        let loadingInterval = null;
+
+        /* ── Utility: Format file size ── */
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        /* ── Utility: Get file extension label ── */
+        function getExtLabel(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            const map = { pdf: 'PDF', csv: 'CSV', xlsx: 'XLS', xls: 'XLS', docx: 'DOC' };
+            return map[ext] || ext.toUpperCase();
+        }
+
+        /* ── File Selection ── */
+        function handleFile(file) {
+            if (!file) return;
+
+            fileNameEl.textContent = file.name;
+            fileSizeEl.textContent = formatSize(file.size);
+            fileIconEl.textContent = getExtLabel(file.name);
+
+            filePreview.classList.add('visible');
+            dropZone.style.borderColor = 'var(--primary)';
+            dropZone.style.borderStyle = 'solid';
+        }
+
+        function clearFile() {
+            fileInput.value = '';
+            filePreview.classList.remove('visible');
+            dropZone.style.borderColor = '';
+            dropZone.style.borderStyle = '';
+        }
+
+        /* Click to select */
+        dropZone.addEventListener('click', function(e) {
+            if (e.target === removeFileBtn || removeFileBtn.contains(e.target)) return;
+            fileInput.click();
         });
 
-        // Falling Rupees & Icons
-        function createParticle() {
-            const p = document.createElement('div');
-            p.className = 'particle';
-            p.innerText = ['₹', '💰', '💸', '💎', '⭐'][Math.floor(Math.random() * 5)];
-            p.style.left = Math.random() * 100 + 'vw';
-            p.style.fontSize = (10 + Math.random() * 20) + 'px';
-            const duration = 6 + Math.random() * 8;
-            p.style.animationDuration = duration + 's';
-            document.body.appendChild(p);
-            setTimeout(() => p.remove(), duration * 1000);
-        }
-        setInterval(createParticle, 450);
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                handleFile(this.files[0]);
+            }
+        });
 
-        // File Selection Feedback
-        function fileSelected() {
-            const input = document.getElementById('fileInput');
-            const status = document.getElementById('statusText');
-            if (input.files.length > 0) {
-                status.innerHTML = "File Ready: <strong style='color:#00f2ff'>" + input.files[0].name + "</strong>";
+        removeFileBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            clearFile();
+        });
+
+        /* ── Drag & Drop ── */
+        ['dragenter', 'dragover'].forEach(function(evt) {
+            dropZone.addEventListener(evt, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('drag-over');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(function(evt) {
+            dropZone.addEventListener(evt, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('drag-over');
+            });
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFile(files[0]);
+            }
+        });
+
+        /* ── Loading Overlay ── */
+        function showLoader() {
+            loadingOverlay.classList.add('visible');
+            document.body.style.overflow = 'hidden';
+
+            const steps = loadingOverlay.querySelectorAll('.loading-step');
+            let currentStep = 0;
+
+            // Reset all steps
+            steps.forEach(function(s) {
+                s.classList.remove('active', 'done');
+            });
+
+            // Activate first step
+            steps[0].classList.add('active');
+
+            loadingInterval = setInterval(function() {
+                if (currentStep < steps.length) {
+                    steps[currentStep].classList.remove('active');
+                    steps[currentStep].classList.add('done');
+                }
+                currentStep++;
+                if (currentStep < steps.length) {
+                    steps[currentStep].classList.add('active');
+                } else {
+                    clearInterval(loadingInterval);
+                }
+            }, 1800);
+        }
+
+        function hideLoader() {
+            loadingOverlay.classList.remove('visible');
+            document.body.style.overflow = '';
+            if (loadingInterval) {
+                clearInterval(loadingInterval);
+                loadingInterval = null;
             }
         }
 
-        // Loader Trigger
-        document.getElementById('uploadForm').addEventListener('submit', () => {
-            document.getElementById('loader').style.display = 'flex';
+        /* ── Toast ── */
+        function showToast(message) {
+            toastMessage.textContent = message;
+            toast.classList.add('visible');
+            setTimeout(function() {
+                toast.classList.remove('visible');
+            }, 4500);
+        }
+
+        /* ── Password Modal ── */
+        function showPasswordModal() {
+            passwordModal.classList.add('visible');
+            document.body.style.overflow = 'hidden';
+            pdfPasswordInput.value = '';
+            modalError.classList.remove('visible');
+            setTimeout(function() {
+                pdfPasswordInput.focus();
+            }, 100);
+        }
+
+        function hidePasswordModal() {
+            passwordModal.classList.remove('visible');
+            document.body.style.overflow = '';
+            storedFileId = null;
+        }
+
+        modalClose.addEventListener('click', hidePasswordModal);
+        modalBackdrop.addEventListener('click', hidePasswordModal);
+
+        /* Password show/hide toggle */
+        passwordToggle.addEventListener('click', function() {
+            const input = pdfPasswordInput;
+            const eyeIcon = document.getElementById('eyeIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+            } else {
+                input.type = 'password';
+                eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+            }
         });
+
+        /* ── Handle response from server ── */
+        async function handleResponse(response) {
+            const contentType = response.headers.get('content-type') || '';
+
+            if (contentType.includes('application/json')) {
+                const data = await response.json();
+
+                if (data.needs_password) {
+                    hideLoader();
+                    storedFileId = data.file_id;
+                    showPasswordModal();
+                    return;
+                }
+
+                if (data.error) {
+                    hideLoader();
+                    showToast(data.error);
+                    return;
+                }
+            }
+
+            // If it's HTML (the dashboard), replace the entire page
+            const html = await response.text();
+            if (html && html.trim().length > 0) {
+                document.open();
+                document.write(html);
+                document.close();
+            } else {
+                hideLoader();
+                showToast('Unexpected response from server.');
+            }
+        }
+
+        /* ── Form Submit (AJAX) ── */
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showToast('Please select a file to analyze.');
+                return;
+            }
+
+            showLoader();
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // Check if the response content type is JSON
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const data = await response.json();
+
+                    if (data.needs_password) {
+                        hideLoader();
+                        storedFileId = data.file_id;
+                        showPasswordModal();
+                        return;
+                    }
+
+                    if (data.error) {
+                        hideLoader();
+                        showToast(data.error);
+                        return;
+                    }
+                }
+
+                // HTML response — dashboard
+                const html = await response.text();
+                if (html && html.trim().length > 0) {
+                    document.open();
+                    document.write(html);
+                    document.close();
+                } else {
+                    hideLoader();
+                    showToast('No data could be extracted from the file.');
+                }
+            } catch (err) {
+                hideLoader();
+                showToast('Connection error. Please try again.');
+                console.error(err);
+            }
+        });
+
+        /* ── Password Form Submit ── */
+        passwordForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const password = pdfPasswordInput.value.trim();
+            if (!password) return;
+
+            modalError.classList.remove('visible');
+            hidePasswordModal();
+            showLoader();
+
+            try {
+                const response = await fetch('/retry-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_id: storedFileId,
+                        password: password
+                    })
+                });
+
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const data = await response.json();
+
+                    if (data.error) {
+                        hideLoader();
+                        showPasswordModal();
+                        modalError.textContent = data.error || 'Wrong password. Try again.';
+                        modalError.classList.add('visible');
+                        return;
+                    }
+
+                    if (data.needs_password) {
+                        hideLoader();
+                        storedFileId = data.file_id;
+                        showPasswordModal();
+                        modalError.textContent = 'Wrong password. Try again.';
+                        modalError.classList.add('visible');
+                        return;
+                    }
+                }
+
+                const html = await response.text();
+                if (html && html.trim().length > 0) {
+                    document.open();
+                    document.write(html);
+                    document.close();
+                } else {
+                    hideLoader();
+                    showToast('Could not process the file.');
+                }
+            } catch (err) {
+                hideLoader();
+                showToast('Connection error. Please try again.');
+                console.error(err);
+            }
+        });
+
+        /* ── Scroll Animations for Step Cards ── */
+        function animateOnScroll() {
+            const cards = document.querySelectorAll('.step-card');
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (entry.isIntersecting) {
+                        const step = parseInt(entry.target.getAttribute('data-step'), 10);
+                        setTimeout(function() {
+                            entry.target.classList.add('visible');
+                        }, (step - 1) * 150);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.2 });
+
+            cards.forEach(function(card) {
+                observer.observe(card);
+            });
+        }
+
+        animateOnScroll();
+
+        /* ── Escape key closes modal ── */
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && passwordModal.classList.contains('visible')) {
+                hidePasswordModal();
+            }
+        });
+
+    })();
     </script>
+
 </body>
 </html>

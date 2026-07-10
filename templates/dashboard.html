@@ -3,285 +3,1585 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartSpend | Intelligence Dashboard</title>
-
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <title>SmartSpend AI — Analytics Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <style>
+        /* ═══════════════════════════════════════════
+           DESIGN TOKENS
+           ═══════════════════════════════════════════ */
         :root {
-            --primary: #6366f1;
-            --secondary: #a855f7;
-            --accent: #00f2ff;
-            --bg-dark: #020617;
-            --card-bg: rgba(15, 23, 42, 0.7);
-            --border: rgba(255, 255, 255, 0.08);
+            --bg: #0a0f1e;
+            --surface: rgba(15, 23, 42, 0.7);
+            --surface-hover: rgba(20, 30, 55, 0.85);
+            --border: rgba(255, 255, 255, 0.06);
+            --border-hover: rgba(255, 255, 255, 0.12);
+            --primary: #3b82f6;
+            --accent: #8b5cf6;
+            --text: #f1f5f9;
+            --text-secondary: #64748b;
+            --text-muted: #475569;
+            --radius: 20px;
+            --radius-sm: 12px;
+            --radius-xs: 8px;
         }
 
-        * { margin:0; padding:0; box-sizing:border-box; }
+        /* ═══════════════════════════════════════════
+           RESET & BASE
+           ═══════════════════════════════════════════ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
         body {
-            background: var(--bg-dark);
-            color: white;
-            font-family: 'Poppins', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.6;
             overflow-x: hidden;
             min-height: 100vh;
         }
 
-        /* 🌌 Animated Mesh Gradient Background */
-        .bg-mesh {
-            position: fixed; inset: 0;
-            background: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.15) 0, transparent 50%),
-                radial-gradient(at 50% 100%, rgba(0, 242, 255, 0.1) 0, transparent 50%);
-            z-index: -5;
+        /* ═══════════════════════════════════════════
+           BACKGROUND EFFECTS
+           ═══════════════════════════════════════════ */
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 60% at 10% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 90% 10%, rgba(139, 92, 246, 0.06) 0%, transparent 60%),
+                radial-gradient(ellipse 70% 40% at 50% 100%, rgba(59, 130, 246, 0.04) 0%, transparent 60%);
+            z-index: -2;
+            pointer-events: none;
         }
 
-        /* ✨ Interactive Mouse Light */
-        #light {
+        #mouseGlow {
             position: fixed;
-            width: 400px; height: 400px;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.12), transparent 70%);
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.06), transparent 70%);
             border-radius: 50%;
             pointer-events: none;
             transform: translate(-50%, -50%);
-            z-index: -3;
+            z-index: -1;
+            transition: left 0.1s ease-out, top 0.1s ease-out;
         }
 
-        /* 📱 Navbar */
-        nav {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 20px 6%;
-            backdrop-filter: blur(20px);
+        /* ═══════════════════════════════════════════
+           NAVBAR
+           ═══════════════════════════════════════════ */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            height: 64px;
+            background: rgba(10, 15, 30, 0.8);
+            backdrop-filter: blur(20px) saturate(1.2);
             border-bottom: 1px solid var(--border);
-            position: sticky; top: 0; z-index: 100;
         }
-        .logo { font-size: 1.4rem; font-weight: 800; letter-spacing: -1px; }
-        .logo span { color: var(--accent); }
 
-        .container { padding: 30px 6%; }
+        .navbar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--text);
+            text-decoration: none;
+        }
 
-        .header-title {
-            margin-bottom: 30px;
-            font-size: 1.8rem;
-            font-weight: 800;
-            background: linear-gradient(to right, #fff, var(--accent));
+        .navbar-logo .logo-icon {
+            font-size: 1.3rem;
+        }
+
+        .navbar-logo .logo-highlight {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        /* 💰 Metrics Grid */
-        .metrics {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
+        .navbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .metric-card {
-            background: var(--card-bg);
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 18px;
+            border-radius: 10px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            border: none;
+            white-space: nowrap;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
             border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 30px;
+        }
+
+        .btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            border-color: var(--border-hover);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: #fff;
+            box-shadow: 0 2px 12px rgba(59, 130, 246, 0.25);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+            transform: translateY(-1px);
+        }
+
+        /* ═══════════════════════════════════════════
+           MAIN CONTAINER
+           ═══════════════════════════════════════════ */
+        .main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px 40px 60px;
+        }
+
+        /* ═══════════════════════════════════════════
+           SECTION HEADERS
+           ═══════════════════════════════════════════ */
+        .section-header {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title .badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--primary);
+        }
+
+        /* ═══════════════════════════════════════════
+           METRIC CARDS
+           ═══════════════════════════════════════════ */
+        .metrics-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+        }
+
+        .metrics-row::-webkit-scrollbar {
+            display: none;
+        }
+
+        .metric-card {
+            flex: 1;
+            min-width: 200px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
             backdrop-filter: blur(20px);
-            transition: 0.3s;
+            transition: all 0.2s ease;
             position: relative;
             overflow: hidden;
         }
-        .metric-card:hover { transform: translateY(-5px); border-color: var(--accent); }
-        .metric-card h3 { font-size: 0.9rem; opacity: 0.6; font-weight: 500; margin-bottom: 10px; }
-        .metric-card .value { font-size: 2rem; font-weight: 800; }
-        .metric-card .icon { position: absolute; right: 20px; top: 20px; font-size: 2.5rem; opacity: 0.1; }
 
-        /* 📊 Charts Section */
+        .metric-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--border-hover);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .metric-card .metric-icon {
+            position: absolute;
+            top: 18px;
+            right: 20px;
+            font-size: 1.6rem;
+            opacity: 0.08;
+        }
+
+        .metric-card .metric-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 1.65rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            line-height: 1;
+        }
+
+        .metric-card .metric-sub {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        .metric-card.expense .metric-value { color: #f87171; }
+        .metric-card.income .metric-value { color: #34d399; }
+        .metric-card.flow-positive .metric-value { color: #60a5fa; }
+        .metric-card.flow-negative .metric-value { color: #f87171; }
+
+        /* ═══════════════════════════════════════════
+           CHART CARDS
+           ═══════════════════════════════════════════ */
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 25px;
-            margin-bottom: 40px;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
         }
-        .chart-container {
-            background: var(--card-bg);
+
+        .chart-card {
+            background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 25px;
+            border-radius: var(--radius);
+            padding: 28px;
             backdrop-filter: blur(20px);
         }
-        .chart-container h4 { margin-bottom: 20px; font-weight: 600; opacity: 0.8; }
 
-        /* 📄 Transaction Table */
-        .table-section {
-            background: var(--card-bg);
+        .chart-card .chart-title {
+            font-size: 0.88rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-card .chart-title .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .chart-wrapper {
+            position: relative;
+        }
+
+        /* Doughnut center text */
+        .doughnut-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -60%);
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .doughnut-center .center-amount {
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text);
+        }
+
+        .doughnut-center .center-label {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+
+        /* ═══════════════════════════════════════════
+           AI INSIGHTS PANEL
+           ═══════════════════════════════════════════ */
+        .insights-card {
+            background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 30px;
+            border-radius: var(--radius);
+            padding: 28px;
+            backdrop-filter: blur(20px);
+            margin-bottom: 24px;
+        }
+
+        .insights-card .insights-title {
+            font-size: 0.88rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .insight-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .insight-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.02);
+            border-left: 3px solid var(--primary);
+            font-size: 0.84rem;
+            line-height: 1.5;
+            color: var(--text);
+            opacity: 0;
+            animation: fadeSlideIn 0.4s ease forwards;
+        }
+
+        .insight-item:nth-child(1) { animation-delay: 0.1s; border-left-color: #3b82f6; }
+        .insight-item:nth-child(2) { animation-delay: 0.2s; border-left-color: #8b5cf6; }
+        .insight-item:nth-child(3) { animation-delay: 0.3s; border-left-color: #10b981; }
+        .insight-item:nth-child(4) { animation-delay: 0.4s; border-left-color: #f59e0b; }
+        .insight-item:nth-child(5) { animation-delay: 0.5s; border-left-color: #ef4444; }
+        .insight-item:nth-child(6) { animation-delay: 0.6s; border-left-color: #06b6d4; }
+        .insight-item:nth-child(7) { animation-delay: 0.7s; border-left-color: #ec4899; }
+        .insight-item:nth-child(8) { animation-delay: 0.8s; border-left-color: #f97316; }
+
+        .insight-item .insight-icon {
+            font-size: 1rem;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        @keyframes fadeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+           TRANSACTION TABLE
+           ═══════════════════════════════════════════ */
+        .table-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
             backdrop-filter: blur(20px);
             overflow: hidden;
         }
-        .table-wrapper { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; min-width: 800px; }
-        th { text-align: left; padding: 15px; font-size: 0.85rem; opacity: 0.5; font-weight: 500; border-bottom: 1px solid var(--border); }
-        td { padding: 18px 15px; font-size: 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
-        tr:hover td { background: rgba(255,255,255,0.02); }
 
-        /* 🏷️ AI Chips */
-        .chip {
-            padding: 6px 14px;
-            border-radius: 100px;
-            font-size: 0.75rem;
+        .table-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 28px 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .table-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .table-header-left h3 {
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .table-count-badge {
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 2px 9px;
+            border-radius: 6px;
+            background: rgba(59, 130, 246, 0.12);
+            color: var(--primary);
+        }
+
+        .table-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-input,
+        .filter-select {
+            padding: 8px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.78rem;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .search-input {
+            width: 220px;
+        }
+
+        .search-input:focus,
+        .filter-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .filter-select {
+            cursor: pointer;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 30px;
+        }
+
+        .filter-select option {
+            background: #1e293b;
+            color: var(--text);
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+        }
+
+        .data-table thead th {
+            position: sticky;
+            top: 0;
+            background: rgba(10, 15, 30, 0.95);
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            user-select: none;
         }
-        .shopping { background: rgba(37, 99, 235, 0.2); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
-        .food { background: rgba(22, 163, 74, 0.2); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); }
-        .transfer { background: rgba(124, 58, 237, 0.2); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.3); }
-        .bills { background: rgba(220, 38, 38, 0.2); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
-        .grocery { background: rgba(234, 88, 12, 0.2); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.3); }
-        .others { background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.3); }
+
+        .data-table thead th.sortable {
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .data-table thead th.sortable:hover {
+            color: var(--text-secondary);
+        }
+
+        .data-table thead th .sort-arrow {
+            display: inline-block;
+            margin-left: 4px;
+            opacity: 0.3;
+            font-size: 0.6rem;
+        }
+
+        .data-table thead th.sort-active .sort-arrow {
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        .data-table tbody tr {
+            transition: background 0.15s ease;
+        }
+
+        .data-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .data-table tbody td {
+            padding: 14px 16px;
+            font-size: 0.82rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.025);
+            vertical-align: middle;
+        }
+
+        .data-table .col-index {
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            font-weight: 500;
+            width: 40px;
+        }
+
+        .data-table .col-date {
+            color: var(--text-secondary);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .data-table .col-desc {
+            font-weight: 500;
+            max-width: 320px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .data-table .col-merchant {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .data-table .col-debit {
+            font-weight: 600;
+            color: #f87171;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .data-table .col-credit {
+            font-weight: 600;
+            color: #34d399;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        /* Category chips */
+        .category-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .chip-shopping     { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); }
+        .chip-food          { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+        .chip-grocery       { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+        .chip-healthcare    { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .chip-travel        { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.2); }
+        .chip-fuel          { background: rgba(249,115,22,0.12); color: #fb923c; border: 1px solid rgba(249,115,22,0.2); }
+        .chip-bills         { background: rgba(236,72,153,0.12); color: #f472b6; border: 1px solid rgba(236,72,153,0.2); }
+        .chip-entertainment { background: rgba(232,121,249,0.12);color: #e879f9; border: 1px solid rgba(232,121,249,0.2); }
+        .chip-education     { background: rgba(20,184,166,0.12); color: #2dd4bf; border: 1px solid rgba(20,184,166,0.2); }
+        .chip-finance       { background: rgba(100,116,139,0.12);color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
+        .chip-rent          { background: rgba(99,102,241,0.12); color: #818cf8; border: 1px solid rgba(99,102,241,0.2); }
+        .chip-salary        { background: rgba(5,150,105,0.12);  color: #34d399; border: 1px solid rgba(5,150,105,0.2); }
+        .chip-investment    { background: rgba(6,182,212,0.12);  color: #22d3ee; border: 1px solid rgba(6,182,212,0.2); }
+        .chip-atm           { background: rgba(156,163,175,0.12);color: #9ca3af; border: 1px solid rgba(156,163,175,0.2); }
+        .chip-transfer      { background: rgba(167,139,250,0.12);color: #a78bfa; border: 1px solid rgba(167,139,250,0.2); }
+        .chip-money-transfer { background: rgba(167,139,250,0.12);color: #a78bfa; border: 1px solid rgba(167,139,250,0.2); }
+        .chip-others        { background: rgba(107,114,128,0.12);color: #9ca3af; border: 1px solid rgba(107,114,128,0.2); }
+
+        /* Pagination */
+        .table-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 28px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .pagination-info {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .page-btn {
+            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            color: var(--text-secondary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--border-hover);
+            color: var(--text);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .page-indicator {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            padding: 0 8px;
+            font-weight: 500;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state .empty-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 0.84rem;
+        }
+
+        /* ═══════════════════════════════════════════
+           FOOTER
+           ═══════════════════════════════════════════ */
+        .site-footer {
+            text-align: center;
+            padding: 40px 20px;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            letter-spacing: 0.2px;
+        }
+
+        .site-footer span {
+            opacity: 0.5;
+            margin: 0 6px;
+        }
+
+        /* ═══════════════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════════════ */
+        @media (max-width: 1024px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
 
         @media (max-width: 768px) {
-            .charts-grid { grid-template-columns: 1fr; }
-            .container { padding: 20px; }
+            .navbar {
+                padding: 0 20px;
+            }
+
+            .main {
+                padding: 20px 16px 40px;
+            }
+
+            .metrics-row {
+                gap: 12px;
+            }
+
+            .metric-card {
+                min-width: 170px;
+                padding: 18px;
+            }
+
+            .metric-card .metric-value {
+                font-size: 1.3rem;
+            }
+
+            .chart-card {
+                padding: 20px;
+            }
+
+            .table-header {
+                padding: 16px 18px 12px;
+            }
+
+            .table-controls {
+                width: 100%;
+            }
+
+            .search-input {
+                flex: 1;
+                width: auto;
+            }
+
+            .table-footer {
+                padding: 12px 18px;
+            }
+
+            .data-table tbody td,
+            .data-table thead th {
+                padding: 10px 12px;
+            }
+
+            .site-footer {
+                padding: 24px 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .navbar-logo span:not(.logo-icon):not(.logo-highlight) {
+                display: none;
+            }
+
+            .btn span.btn-label {
+                display: none;
+            }
+
+            .metric-card .metric-value {
+                font-size: 1.15rem;
+            }
+
+            .metric-card .metric-label {
+                font-size: 0.65rem;
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+           SCROLLBAR
+           ═══════════════════════════════════════════ */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.14);
         }
     </style>
 </head>
-
 <body>
 
-<div class="bg-mesh"></div>
-<div id="light"></div>
+<div class="bg-gradient"></div>
+<div id="mouseGlow"></div>
 
-<nav>
-    <div class="logo">💸 SmartSpend <span>AI</span></div>
-    <div style="font-size: 0.8rem; background: rgba(0,242,255,0.1); color: var(--accent); padding: 5px 12px; border-radius: 50px; border: 1px solid var(--accent);">Analytics Live</div>
+<!-- ════════════════════════════════════════════
+     NAVBAR
+     ════════════════════════════════════════════ -->
+<nav class="navbar">
+    <a href="/" class="navbar-logo">
+        <span class="logo-icon">📊</span>
+        <span>SmartSpend</span>
+        <span class="logo-highlight">AI</span>
+    </a>
+    <div class="navbar-actions">
+        <button class="btn btn-ghost" onclick="exportCSV()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="btn-label">Export CSV</span>
+        </button>
+        <a href="/" class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span class="btn-label">New Analysis</span>
+        </a>
+    </div>
 </nav>
 
-<div class="container">
-    <h2 class="header-title">Expense Intelligence Dashboard</h2>
+<!-- ════════════════════════════════════════════
+     MAIN CONTENT
+     ════════════════════════════════════════════ -->
+<main class="main">
 
-    <div class="metrics">
-        <div class="metric-card">
-            <div class="icon">💰</div>
-            <h3>TOTAL SPEND</h3>
-            <div class="value">₹ {{ total_spend }}</div>
+    <!-- ──── METRICS ROW ──── -->
+    <div class="metrics-row">
+        <div class="metric-card expense">
+            <div class="metric-icon">💰</div>
+            <div class="metric-label">Total Expenses</div>
+            <div class="metric-value">₹{{ "{:,.2f}".format(total_debit|default(total_spend|default(0), true)) }}</div>
+            {% if top_category %}
+            <div class="metric-sub">Highest: {{ top_category }}</div>
+            {% endif %}
         </div>
-        <div class="metric-card">
-            <div class="icon">📊</div>
-            <h3>TRANSACTIONS</h3>
-            <div class="value">{{ total_transactions }}</div>
+
+        <div class="metric-card income">
+            <div class="metric-icon">💚</div>
+            <div class="metric-label">Total Income</div>
+            <div class="metric-value">₹{{ "{:,.2f}".format(total_credit|default(0, true)) }}</div>
         </div>
+
+        <div class="metric-card {% if (net_flow|default(0, true)) >= 0 %}flow-positive{% else %}flow-negative{% endif %}">
+            <div class="metric-icon">📊</div>
+            <div class="metric-label">Net Cash Flow</div>
+            <div class="metric-value">
+                {% if (net_flow|default(0, true)) >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(net_flow|default(0, true)) }}
+            </div>
+        </div>
+
         <div class="metric-card">
-            <div class="icon">💎</div>
-            <h3>TOP CATEGORY</h3>
-            <div class="value" style="font-size: 1.5rem; margin-top: 10px;">{{ top_category }}</div>
+            <div class="metric-icon">🔢</div>
+            <div class="metric-label">Transactions</div>
+            <div class="metric-value">{{ total_transactions|default(0) }}</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-icon">📈</div>
+            <div class="metric-label">Avg Transaction</div>
+            <div class="metric-value">₹{{ "{:,.2f}".format(avg_transaction|default(0, true)) }}</div>
         </div>
     </div>
 
+    <!-- ──── CHARTS ROW 1 ──── -->
     <div class="charts-grid">
-        <div class="chart-container">
-            <h4>Spending Breakdown</h4>
-            <canvas id="pieChart" height="250"></canvas>
+        <div class="chart-card">
+            <div class="chart-title">
+                <span class="dot" style="background: var(--primary);"></span>
+                Spending Breakdown
+            </div>
+            <div class="chart-wrapper">
+                <div class="doughnut-center">
+                    <div class="center-amount">₹{{ "{:,.0f}".format(total_debit|default(total_spend|default(0), true)) }}</div>
+                    <div class="center-label">Total</div>
+                </div>
+                <canvas id="doughnutChart"></canvas>
+            </div>
         </div>
-        <div class="chart-container">
-            <h4>Monthly Distribution</h4>
-            <canvas id="barChart" height="250"></canvas>
+
+        <div class="chart-card">
+            <div class="chart-title">
+                <span class="dot" style="background: #10b981;"></span>
+                Daily Spending Trend
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="trendChart"></canvas>
+            </div>
         </div>
     </div>
 
-    <div class="table-section">
-        <h4 style="margin-bottom: 20px; opacity: 0.8;">📄 Transaction History</h4>
-        <div class="table-wrapper">
-            <table>
+    <!-- ──── CHARTS ROW 2 ──── -->
+    <div class="charts-grid">
+        <div class="chart-card">
+            <div class="chart-title">
+                <span class="dot" style="background: var(--accent);"></span>
+                Category Comparison
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="categoryBarChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-title">
+                <span class="dot" style="background: #f59e0b;"></span>
+                Top Merchants
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="merchantChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- ──── AI INSIGHTS ──── -->
+    {% if insights %}
+    <div class="insights-card">
+        <div class="insights-title">🧠 Smart Insights</div>
+        <ul class="insight-list">
+            {% for insight in insights %}
+            <li class="insight-item">
+                <span class="insight-icon">
+                    {% if loop.index % 5 == 1 %}💡{% elif loop.index % 5 == 2 %}📌{% elif loop.index % 5 == 3 %}🔍{% elif loop.index % 5 == 4 %}⚡{% else %}🎯{% endif %}
+                </span>
+                <span>{{ insight }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- ──── TRANSACTION TABLE ──── -->
+    <div class="table-card">
+        <div class="table-header">
+            <div class="table-header-left">
+                <h3>Transaction History</h3>
+                <span class="table-count-badge" id="txCountBadge">{{ rows|length }}</span>
+            </div>
+            <div class="table-controls">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search transactions…">
+                <select class="filter-select" id="categoryFilter">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-scroll">
+            <table class="data-table" id="txTable">
                 <thead>
                     <tr>
-                        <th>DATE</th>
-                        <th>DESCRIPTION</th>
-                        <th>AMOUNT</th>
-                        <th>AI CATEGORY</th>
+                        <th>#</th>
+                        <th class="sortable" data-sort="date">Date <span class="sort-arrow">▲</span></th>
+                        <th>Description</th>
+                        <th>Merchant</th>
+                        <th class="sortable" data-sort="debit">Debit (₹) <span class="sort-arrow">▲</span></th>
+                        <th class="sortable" data-sort="credit">Credit (₹) <span class="sort-arrow">▲</span></th>
+                        <th>Category</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for t in rows %}
-                    <tr>
-                        <td style="opacity: 0.6;">{{ t['Transaction Date'] }}</td>
-                        <td style="font-weight: 500;">{{ t['Description/Narration'] }}</td>
-                        <td style="font-weight: 700; color: var(--accent);">₹ {{ t['Amount'] }}</td>
-                        <td>
-                            <span class="chip 
-                                {% if t['AI Category']=="Shopping" %}shopping
-                                {% elif t['AI Category']=="Food" %}food
-                                {% elif t['AI Category']=="Money Transfer" %}transfer
-                                {% elif t['AI Category']=="Bills" %}bills
-                                {% elif t['AI Category']=="Grocery" %}grocery
-                                {% else %}others{% endif %}">
-                                {{ t['AI Category'] }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                <tbody id="txBody">
                 </tbody>
             </table>
         </div>
-    </div>
-</div>
 
-<footer style="text-align: center; padding: 40px; opacity: 0.4; font-size: 0.8rem;">
-    © 2026 SmartSpend AI • Secure Financial Analytics
+        <div class="empty-state" id="emptyState" style="display:none;">
+            <div class="empty-icon">🔍</div>
+            <p>No transactions match your search</p>
+        </div>
+
+        <div class="table-footer">
+            <div class="pagination-info" id="paginationInfo">Showing 0 of 0</div>
+            <div class="pagination-controls">
+                <button class="page-btn" id="prevPage" onclick="changePage(-1)">← Prev</button>
+                <span class="page-indicator" id="pageIndicator">1 / 1</span>
+                <button class="page-btn" id="nextPage" onclick="changePage(1)">Next →</button>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<!-- ════════════════════════════════════════════
+     FOOTER
+     ════════════════════════════════════════════ -->
+<footer class="site-footer">
+    © 2026 SmartSpend AI <span>•</span> Secure Financial Analytics <span>•</span> By Pankaj Keswani
 </footer>
 
+<!-- ════════════════════════════════════════════
+     JAVASCRIPT
+     ════════════════════════════════════════════ -->
 <script>
-    // Mouse Glow script
-    const glow = document.getElementById('light');
+(function() {
+    'use strict';
+
+    /* ═══════════════════════════════════════
+       COLOR MAP
+       ═══════════════════════════════════════ */
+    const categoryColors = {
+        'Shopping':      '#3b82f6',
+        'Food':          '#10b981',
+        'Grocery':       '#f59e0b',
+        'Healthcare':    '#ef4444',
+        'Travel':        '#8b5cf6',
+        'Fuel':          '#f97316',
+        'Bills':         '#ec4899',
+        'Entertainment': '#e879f9',
+        'Education':     '#14b8a6',
+        'Finance':       '#64748b',
+        'Rent':          '#6366f1',
+        'Salary':        '#059669',
+        'Investment':    '#06b6d4',
+        'ATM':           '#9ca3af',
+        'Transfer':      '#a78bfa',
+        'Money Transfer':'#a78bfa',
+        'Others':        '#6b7280'
+    };
+
+    function getColor(cat) {
+        return categoryColors[cat] || '#6b7280';
+    }
+
+    function getCategoryChipClass(cat) {
+        const map = {
+            'Shopping':'chip-shopping','Food':'chip-food','Grocery':'chip-grocery',
+            'Healthcare':'chip-healthcare','Travel':'chip-travel','Fuel':'chip-fuel',
+            'Bills':'chip-bills','Entertainment':'chip-entertainment','Education':'chip-education',
+            'Finance':'chip-finance','Rent':'chip-rent','Salary':'chip-salary',
+            'Investment':'chip-investment','ATM':'chip-atm','Transfer':'chip-transfer',
+            'Money Transfer':'chip-money-transfer','Others':'chip-others'
+        };
+        return map[cat] || 'chip-others';
+    }
+
+    /* ═══════════════════════════════════════
+       DATA FROM JINJA
+       ═══════════════════════════════════════ */
+    const categorySummary = [
+        {% for c in category_summary %}{name: "{{ c[0] }}", value: {{ c[1] }}}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ].sort((a, b) => b.value - a.value);
+
+    const topMerchants = [
+        {% if top_merchants is defined %}
+        {% for m in top_merchants %}{name:"{{ m[0] }}", total:{{ m[1] }}, count:{{ m[2] }}}{% if not loop.last %},{% endif %}
+        {% endfor %}
+        {% endif %}
+    ].slice(0, 10);
+
+    const dailySpending = [
+        {% if daily_spending is defined %}
+        {% for d in daily_spending %}{date:"{{ d[0] }}", amount:{{ d[1] }}}{% if not loop.last %},{% endif %}
+        {% endfor %}
+        {% endif %}
+    ];
+
+    const allRows = [
+        {% for t in rows %}
+        {
+            date: "{{ t['Transaction Date'] }}",
+            desc: "{{ t['Description/Narration']|replace('"', '\\"')|replace('\n', ' ')|replace('\r', '') }}",
+            merchant: "{{ t.get('Merchant', '')|replace('"', '\\"') }}",
+            debit: {{ t.get('Debit', t.get('Amount', 0)) or 0 }},
+            credit: {{ t.get('Credit', 0) or 0 }},
+            category: "{{ t['AI Category'] }}"
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    /* ═══════════════════════════════════════
+       MOUSE GLOW
+       ═══════════════════════════════════════ */
+    const glow = document.getElementById('mouseGlow');
     document.addEventListener('mousemove', (e) => {
         glow.style.left = e.clientX + 'px';
         glow.style.top = e.clientY + 'px';
     });
 
-    // Chart Data from Jinja
-    const labels = [{% for c in category_summary %}"{{ c[0] }}",{% endfor %}];
-    const values = [{% for c in category_summary %}{{ c[1] }},{% endfor %}];
-
-    // Pie Chart
-    new Chart(document.getElementById('pieChart'), {
+    /* ═══════════════════════════════════════
+       CHART 1: DOUGHNUT
+       ═══════════════════════════════════════ */
+    const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
+    new Chart(doughnutCtx, {
         type: 'doughnut',
         data: {
-            labels: labels,
+            labels: categorySummary.map(c => c.name),
             datasets: [{
-                data: values,
-                backgroundColor: ['#6366f1', '#a855f7', '#00f2ff', '#f43f5e', '#10b981', '#f59e0b', '#94a3b8'],
+                data: categorySummary.map(c => c.value),
+                backgroundColor: categorySummary.map(c => getColor(c.name)),
                 borderWidth: 0,
-                hoverOffset: 20
+                hoverOffset: 16,
+                borderRadius: 4,
+                spacing: 2
             }]
         },
         options: {
-            cutout: '70%',
+            cutout: '72%',
+            responsive: true,
+            maintainAspectRatio: true,
             plugins: {
-                legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 20, font: { family: 'Poppins' } } }
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#94a3b8',
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: { family: 'Inter', size: 11, weight: '500' }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleFont: { family: 'Inter', weight: '600' },
+                    bodyFont: { family: 'Inter' },
+                    padding: 12,
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderWidth: 1,
+                    cornerRadius: 10,
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                            return ` ₹${ctx.parsed.toLocaleString('en-IN')} (${pct}%)`;
+                        }
+                    }
+                }
             }
         }
     });
 
-    // Bar Chart
-    new Chart(document.getElementById('barChart'), {
-        type: 'bar',
+    /* ═══════════════════════════════════════
+       CHART 2: DAILY TREND (Area)
+       ═══════════════════════════════════════ */
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+
+    // Determine trend data: use dailySpending if available, else aggregate from rows
+    let trendLabels, trendData;
+    if (dailySpending.length > 0) {
+        trendLabels = dailySpending.map(d => d.date);
+        trendData = dailySpending.map(d => d.amount);
+    } else {
+        // Aggregate debits by date from allRows
+        const dateMap = {};
+        allRows.forEach(r => {
+            if (r.debit > 0) {
+                if (!dateMap[r.date]) dateMap[r.date] = 0;
+                dateMap[r.date] += r.debit;
+            }
+        });
+        const sorted = Object.entries(dateMap).sort((a, b) => a[0].localeCompare(b[0]));
+        trendLabels = sorted.map(s => s[0]);
+        trendData = sorted.map(s => s[1]);
+    }
+
+    const trendGradient = trendCtx.createLinearGradient(0, 0, 0, 300);
+    trendGradient.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+    trendGradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+
+    new Chart(trendCtx, {
+        type: 'line',
         data: {
-            labels: labels,
+            labels: trendLabels,
             datasets: [{
                 label: 'Spending',
-                data: values,
-                backgroundColor: '#6366f1',
-                borderRadius: 10,
-                barThickness: 25
+                data: trendData,
+                borderColor: '#10b981',
+                borderWidth: 2.5,
+                backgroundColor: trendGradient,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                pointHoverBackgroundColor: '#10b981',
+                pointHoverBorderColor: '#fff',
+                pointHoverBorderWidth: 2
             }]
         },
         options: {
-            plugins: { legend: { display: false } },
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleFont: { family: 'Inter', weight: '600', size: 12 },
+                    bodyFont: { family: 'Inter', size: 12 },
+                    padding: 12,
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderWidth: 1,
+                    cornerRadius: 10,
+                    callbacks: {
+                        label: function(ctx) {
+                            return ` ₹${ctx.parsed.y.toLocaleString('en-IN')}`;
+                        }
+                    }
+                }
+            },
             scales: {
-                y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
-                x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        color: '#475569',
+                        font: { family: 'Inter', size: 10 },
+                        maxRotation: 45,
+                        maxTicksLimit: 12
+                    },
+                    border: { display: false }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(255,255,255,0.04)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: '#475569',
+                        font: { family: 'Inter', size: 10 },
+                        callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)
+                    },
+                    border: { display: false }
+                }
             }
         }
     });
+
+    /* ═══════════════════════════════════════
+       CHART 3: CATEGORY BAR (Horizontal)
+       ═══════════════════════════════════════ */
+    const catBarCtx = document.getElementById('categoryBarChart').getContext('2d');
+    new Chart(catBarCtx, {
+        type: 'bar',
+        data: {
+            labels: categorySummary.map(c => c.name),
+            datasets: [{
+                data: categorySummary.map(c => c.value),
+                backgroundColor: categorySummary.map(c => getColor(c.name)),
+                borderRadius: 6,
+                barThickness: 22,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleFont: { family: 'Inter', weight: '600' },
+                    bodyFont: { family: 'Inter' },
+                    padding: 12,
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderWidth: 1,
+                    cornerRadius: 10,
+                    callbacks: {
+                        label: function(ctx) {
+                            return ` ₹${ctx.parsed.x.toLocaleString('en-IN')}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false },
+                    ticks: {
+                        color: '#475569',
+                        font: { family: 'Inter', size: 10 },
+                        callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)
+                    },
+                    border: { display: false }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: {
+                        color: '#94a3b8',
+                        font: { family: 'Inter', size: 11, weight: '500' }
+                    },
+                    border: { display: false }
+                }
+            }
+        }
+    });
+
+    /* ═══════════════════════════════════════
+       CHART 4: TOP MERCHANTS (Horizontal Bar)
+       ═══════════════════════════════════════ */
+    const merchantCtx = document.getElementById('merchantChart').getContext('2d');
+
+    // Use top_merchants if provided, else aggregate from allRows
+    let merchantData = topMerchants;
+    if (merchantData.length === 0) {
+        const mMap = {};
+        allRows.forEach(r => {
+            const key = r.merchant || 'Unknown';
+            if (!mMap[key]) mMap[key] = { total: 0, count: 0 };
+            mMap[key].total += r.debit;
+            mMap[key].count += 1;
+        });
+        merchantData = Object.entries(mMap)
+            .map(([name, d]) => ({ name, total: Math.round(d.total * 100) / 100, count: d.count }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 10);
+    }
+
+    new Chart(merchantCtx, {
+        type: 'bar',
+        data: {
+            labels: merchantData.map(m => m.name),
+            datasets: [{
+                label: 'Total Spent',
+                data: merchantData.map(m => m.total),
+                backgroundColor: 'rgba(245, 158, 11, 0.7)',
+                borderRadius: 6,
+                barThickness: 20,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleFont: { family: 'Inter', weight: '600' },
+                    bodyFont: { family: 'Inter' },
+                    padding: 12,
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderWidth: 1,
+                    cornerRadius: 10,
+                    callbacks: {
+                        afterLabel: function(ctx) {
+                            const m = merchantData[ctx.dataIndex];
+                            return m.count ? `${m.count} transaction${m.count > 1 ? 's' : ''}` : '';
+                        },
+                        label: function(ctx) {
+                            return ` ₹${ctx.parsed.x.toLocaleString('en-IN')}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false },
+                    ticks: {
+                        color: '#475569',
+                        font: { family: 'Inter', size: 10 },
+                        callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)
+                    },
+                    border: { display: false }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: {
+                        color: '#94a3b8',
+                        font: { family: 'Inter', size: 11, weight: '500' }
+                    },
+                    border: { display: false }
+                }
+            }
+        }
+    });
+
+    /* ═══════════════════════════════════════
+       TABLE: STATE
+       ═══════════════════════════════════════ */
+    const ROWS_PER_PAGE = 25;
+    let currentPage = 1;
+    let filteredRows = [...allRows];
+    let sortCol = null;
+    let sortAsc = true;
+
+    /* ═══════════════════════════════════════
+       TABLE: POPULATE CATEGORY FILTER
+       ═══════════════════════════════════════ */
+    const categoryFilter = document.getElementById('categoryFilter');
+    const cats = [...new Set(allRows.map(r => r.category))].sort();
+    cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        categoryFilter.appendChild(opt);
+    });
+
+    /* ═══════════════════════════════════════
+       TABLE: RENDER
+       ═══════════════════════════════════════ */
+    function renderTable() {
+        const tbody = document.getElementById('txBody');
+        const emptyState = document.getElementById('emptyState');
+        const tableScroll = document.querySelector('.table-scroll');
+
+        const start = (currentPage - 1) * ROWS_PER_PAGE;
+        const end = start + ROWS_PER_PAGE;
+        const pageRows = filteredRows.slice(start, end);
+        const totalPages = Math.max(1, Math.ceil(filteredRows.length / ROWS_PER_PAGE));
+
+        if (filteredRows.length === 0) {
+            tbody.innerHTML = '';
+            emptyState.style.display = 'block';
+            tableScroll.style.display = 'none';
+        } else {
+            emptyState.style.display = 'none';
+            tableScroll.style.display = 'block';
+
+            tbody.innerHTML = pageRows.map((r, i) => {
+                const idx = start + i + 1;
+                const chipClass = getCategoryChipClass(r.category);
+                const debitStr = r.debit > 0 ? `₹${r.debit.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '—';
+                const creditStr = r.credit > 0 ? `₹${r.credit.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '—';
+
+                return `<tr>
+                    <td class="col-index">${idx}</td>
+                    <td class="col-date">${escapeHtml(r.date)}</td>
+                    <td class="col-desc" title="${escapeHtml(r.desc)}">${escapeHtml(r.desc)}</td>
+                    <td class="col-merchant">${escapeHtml(r.merchant || '—')}</td>
+                    <td class="col-debit">${r.debit > 0 ? debitStr : '<span style="color:var(--text-muted)">—</span>'}</td>
+                    <td class="col-credit">${r.credit > 0 ? creditStr : '<span style="color:var(--text-muted)">—</span>'}</td>
+                    <td><span class="category-chip ${chipClass}">${escapeHtml(r.category)}</span></td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Pagination info
+        const showStart = filteredRows.length > 0 ? start + 1 : 0;
+        const showEnd = Math.min(end, filteredRows.length);
+        document.getElementById('paginationInfo').textContent =
+            `Showing ${showStart}–${showEnd} of ${filteredRows.length} transactions`;
+        document.getElementById('pageIndicator').textContent = `${currentPage} / ${totalPages}`;
+        document.getElementById('prevPage').disabled = currentPage <= 1;
+        document.getElementById('nextPage').disabled = currentPage >= totalPages;
+        document.getElementById('txCountBadge').textContent = filteredRows.length;
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    /* ═══════════════════════════════════════
+       TABLE: SEARCH + FILTER
+       ═══════════════════════════════════════ */
+    const searchInput = document.getElementById('searchInput');
+
+    function filterTable() {
+        const query = searchInput.value.toLowerCase().trim();
+        const catVal = categoryFilter.value;
+
+        filteredRows = allRows.filter(r => {
+            const matchSearch = !query ||
+                r.desc.toLowerCase().includes(query) ||
+                r.merchant.toLowerCase().includes(query) ||
+                r.date.toLowerCase().includes(query);
+            const matchCat = !catVal || r.category === catVal;
+            return matchSearch && matchCat;
+        });
+
+        // Re-apply sort
+        if (sortCol) applySort(false);
+
+        currentPage = 1;
+        renderTable();
+    }
+
+    searchInput.addEventListener('input', filterTable);
+    categoryFilter.addEventListener('change', filterTable);
+
+    /* ═══════════════════════════════════════
+       TABLE: SORTING
+       ═══════════════════════════════════════ */
+    function applySort(toggle) {
+        if (toggle === undefined) toggle = true;
+
+        filteredRows.sort((a, b) => {
+            let va, vb;
+            if (sortCol === 'date') {
+                va = a.date; vb = b.date;
+            } else if (sortCol === 'debit') {
+                va = a.debit; vb = b.debit;
+            } else if (sortCol === 'credit') {
+                va = a.credit; vb = b.credit;
+            }
+            if (typeof va === 'string') {
+                return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+            }
+            return sortAsc ? va - vb : vb - va;
+        });
+    }
+
+    document.querySelectorAll('.data-table thead th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = th.dataset.sort;
+
+            // Toggle direction or set new column
+            if (sortCol === col) {
+                sortAsc = !sortAsc;
+            } else {
+                sortCol = col;
+                sortAsc = true;
+            }
+
+            // Update UI indicators
+            document.querySelectorAll('.data-table thead th.sortable').forEach(h => {
+                h.classList.remove('sort-active');
+                h.querySelector('.sort-arrow').textContent = '▲';
+            });
+            th.classList.add('sort-active');
+            th.querySelector('.sort-arrow').textContent = sortAsc ? '▲' : '▼';
+
+            applySort();
+            currentPage = 1;
+            renderTable();
+        });
+    });
+
+    /* ═══════════════════════════════════════
+       TABLE: PAGINATION
+       ═══════════════════════════════════════ */
+    window.changePage = function(dir) {
+        const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
+        const next = currentPage + dir;
+        if (next >= 1 && next <= totalPages) {
+            currentPage = next;
+            renderTable();
+            // Scroll table into view
+            document.querySelector('.table-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
+    /* ═══════════════════════════════════════
+       EXPORT CSV
+       ═══════════════════════════════════════ */
+    window.exportCSV = function() {
+        const headers = ['#', 'Date', 'Description', 'Merchant', 'Debit', 'Credit', 'Category'];
+        const csvRows = [headers.join(',')];
+
+        allRows.forEach((r, i) => {
+            const row = [
+                i + 1,
+                `"${r.date}"`,
+                `"${r.desc.replace(/"/g, '""')}"`,
+                `"${(r.merchant || '').replace(/"/g, '""')}"`,
+                r.debit || 0,
+                r.credit || 0,
+                `"${r.category}"`
+            ];
+            csvRows.push(row.join(','));
+        });
+
+        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'smartspend_analysis.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    /* ═══════════════════════════════════════
+       INIT
+       ═══════════════════════════════════════ */
+    renderTable();
+
+})();
 </script>
 
 </body>
