@@ -92,22 +92,21 @@ def find_columns(headers):
 def try_open_pdf(path, password=None):
     """
     Test and open PDF using pikepdf for decryption and pdfplumber for layout extraction.
+    Only prompts for password if it is actually user password protected (cannot open without password).
     """
-    is_encrypted = False
     try:
-        with pikepdf.open(path) as pdf:
-            is_encrypted = pdf.is_encrypted
+        # Try to open without a password first.
+        # This succeeds for unencrypted PDFs or PDFs that are only owner-restricted (no user password required to open).
+        pdf = pikepdf.open(path)
+        
+        # Save a decrypted version to remove restrictions, making it easily readable by pdfplumber
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        pdf.save(temp_file.name)
+        pdf.close()
+        pdf_obj = pdfplumber.open(temp_file.name)
+        return pdf_obj, temp_file.name
     except pikepdf.PasswordError:
-        is_encrypted = True
-    except Exception:
-        # Fallback to pdfplumber directly
-        try:
-            pdf_obj = pdfplumber.open(path)
-            return pdf_obj, None
-        except Exception as e:
-            raise ParseError(f"Unable to open PDF: {str(e)}")
-
-    if is_encrypted:
+        # A user password is explicitly required to open this file!
         if not password:
             raise PasswordRequired()
         try:
@@ -121,22 +120,13 @@ def try_open_pdf(path, password=None):
             raise WrongPassword()
         except Exception as e:
             raise ParseError(f"Error decrypting PDF: {str(e)}")
-    else:
+    except Exception as e:
+        # Fallback to opening directly with pdfplumber (corrupted files or non-standard PDFs)
         try:
             pdf_obj = pdfplumber.open(path)
-            # Validate readable text
-            if len(pdf_obj.pages) > 0:
-                pdf_obj.pages[0].extract_text()
             return pdf_obj, None
         except Exception:
-            try:
-                with pikepdf.open(path) as pdf:
-                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-                    pdf.save(temp_file.name)
-                    pdf_obj = pdfplumber.open(temp_file.name)
-                    return pdf_obj, temp_file.name
-            except Exception as e:
-                raise ParseError(f"Unable to read PDF file: {str(e)}")
+            raise ParseError(f"Unable to read PDF file: {str(e)}")
 
 def parse_pdf_table(pdf):
     """Parse table-based PDF pages using pdfplumber."""
