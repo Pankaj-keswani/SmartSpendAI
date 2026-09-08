@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <style>
         /* ═══════════════════════════════════════════
            DESIGN TOKENS
@@ -857,7 +857,7 @@
             <div class="metric-icon">📊</div>
             <div class="metric-label">Net Cash Flow</div>
             <div class="metric-value">
-                {% if (net_flow|default(0, true)) >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(net_flow|default(0, true)) }}
+                {% if (net_flow|default(0, true)) >= 0 %}+{% else %}-{% endif %}₹{{ "{:,.2f}".format(net_flow|default(0, true)|abs) }}
             </div>
         </div>
 
@@ -1032,6 +1032,33 @@
         return categoryColors[cat] || '#6b7280';
     }
 
+    /* Build a chart defensively: if Chart.js failed to load (CDN down),
+       skip the visual but keep the rest of the page (table etc.) working. */
+    function makeChart(canvasId, config) {
+        try {
+            if (typeof Chart === 'undefined') return;
+            const el = document.getElementById(canvasId);
+            if (!el) return;
+            new Chart(el.getContext('2d'), config);
+        } catch (err) {
+            console.error('Chart init failed:', canvasId, err);
+        }
+    }
+
+    /* Parse statement dates (dd/mm/yyyy, dd-mm-yy, ISO, "05 Jan 2026") */
+    function parseDate(s) {
+        if (!s) return null;
+        s = String(s).trim();
+        let m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+        if (m) {
+            let day = +m[1], mon = +m[2], yr = +m[3];
+            if (yr < 100) yr += 2000;
+            return new Date(yr, mon - 1, day).getTime();
+        }
+        const t = Date.parse(s);
+        return isNaN(t) ? null : t;
+    }
+
     function getCategoryChipClass(cat) {
         const map = {
             'Shopping':'chip-shopping','Food':'chip-food','Grocery':'chip-grocery',
@@ -1048,8 +1075,10 @@
        DATA FROM JINJA
        ═══════════════════════════════════════ */
     const categorySummary = [
+        {% if category_summary is defined %}
         {% for c in category_summary %}{name: {{ c[0]|tojson }}, value: {{ c[1] }}}{% if not loop.last %},{% endif %}
         {% endfor %}
+        {% endif %}
     ].sort((a, b) => b.value - a.value);
 
     const topMerchants = [
@@ -1067,6 +1096,7 @@
     ];
 
     const allRows = [
+        {% if rows is defined %}
         {% for t in rows %}
         {
             date: {{ t['Transaction Date']|tojson }},
@@ -1077,6 +1107,7 @@
             category: {{ t['AI Category']|tojson }}
         }{% if not loop.last %},{% endif %}
         {% endfor %}
+        {% endif %}
     ];
 
     /* ═══════════════════════════════════════
@@ -1091,8 +1122,7 @@
     /* ═══════════════════════════════════════
        CHART 1: DOUGHNUT
        ═══════════════════════════════════════ */
-    const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
-    new Chart(doughnutCtx, {
+    makeChart('doughnutChart', {
         type: 'doughnut',
         data: {
             labels: categorySummary.map(c => c.name),
@@ -1143,15 +1173,13 @@
     /* ═══════════════════════════════════════
        CHART 2: DAILY TREND (Area)
        ═══════════════════════════════════════ */
-    const trendCtx = document.getElementById('trendChart').getContext('2d');
-
     // Determine trend data: use dailySpending if available, else aggregate from rows
     let trendLabels, trendData;
     if (dailySpending.length > 0) {
         trendLabels = dailySpending.map(d => d.date);
         trendData = dailySpending.map(d => d.amount);
     } else {
-        // Aggregate debits by date from allRows
+        // Aggregate debits by date from allRows (sorted chronologically)
         const dateMap = {};
         allRows.forEach(r => {
             if (r.debit > 0) {
@@ -1159,16 +1187,21 @@
                 dateMap[r.date] += r.debit;
             }
         });
-        const sorted = Object.entries(dateMap).sort((a, b) => a[0].localeCompare(b[0]));
+        const sorted = Object.entries(dateMap).sort((a, b) => {
+            const ta = parseDate(a[0]), tb = parseDate(b[0]);
+            if (ta !== null && tb !== null) return ta - tb;
+            return a[0].localeCompare(b[0]);
+        });
         trendLabels = sorted.map(s => s[0]);
         trendData = sorted.map(s => s[1]);
     }
 
-    const trendGradient = trendCtx.createLinearGradient(0, 0, 0, 300);
+    const trendCanvas = document.getElementById('trendChart');
+    const trendGradient = trendCanvas.getContext('2d').createLinearGradient(0, 0, 0, 300);
     trendGradient.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
     trendGradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
 
-    new Chart(trendCtx, {
+    makeChart('trendChart', {
         type: 'line',
         data: {
             labels: trendLabels,
@@ -1241,8 +1274,7 @@
     /* ═══════════════════════════════════════
        CHART 3: CATEGORY BAR (Horizontal)
        ═══════════════════════════════════════ */
-    const catBarCtx = document.getElementById('categoryBarChart').getContext('2d');
-    new Chart(catBarCtx, {
+    makeChart('categoryBarChart', {
         type: 'bar',
         data: {
             labels: categorySummary.map(c => c.name),
@@ -1300,7 +1332,6 @@
     /* ═══════════════════════════════════════
        CHART 4: TOP MERCHANTS (Horizontal Bar)
        ═══════════════════════════════════════ */
-    const merchantCtx = document.getElementById('merchantChart').getContext('2d');
 
     // Use top_merchants if provided, else aggregate from allRows
     let merchantData = topMerchants;
@@ -1318,7 +1349,7 @@
             .slice(0, 10);
     }
 
-    new Chart(merchantCtx, {
+    makeChart('merchantChart', {
         type: 'bar',
         data: {
             labels: merchantData.map(m => m.name),
@@ -1492,14 +1523,18 @@
         filteredRows.sort((a, b) => {
             let va, vb;
             if (sortCol === 'date') {
-                va = a.date; vb = b.date;
+                // Real chronological order, not lexicographic (dd/mm/yyyy)
+                va = parseDate(a.date); vb = parseDate(b.date);
+                if (va === null) va = Infinity;
+                if (vb === null) vb = Infinity;
+                if (va === Infinity && vb === Infinity) {
+                    va = String(a.date); vb = String(b.date);
+                    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                }
             } else if (sortCol === 'debit') {
                 va = a.debit; vb = b.debit;
             } else if (sortCol === 'credit') {
                 va = a.credit; vb = b.credit;
-            }
-            if (typeof va === 'string') {
-                return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
             }
             return sortAsc ? va - vb : vb - va;
         });

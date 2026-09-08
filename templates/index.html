@@ -1199,7 +1199,7 @@
 
     <!-- ═══════════ FOOTER ═══════════ -->
     <footer class="footer container">
-        <p>© {{ 2026 }} SmartSpend AI — Built by <a href="#">Pankaj Keswani</a></p>
+        <p>© 2026 SmartSpend AI — Built by <a href="#">Pankaj Keswani</a></p>
     </footer>
 
     <!-- ═══════════ TOAST ═══════════ -->
@@ -1377,6 +1377,14 @@
             }
         });
 
+        /* Stop the browser from navigating away when a file is
+           dropped outside the drop zone */
+        ['dragover', 'drop'].forEach(function(evt) {
+            document.addEventListener(evt, function(e) {
+                e.preventDefault();
+            });
+        });
+
         /* ── Loading Overlay ── */
         function showLoader() {
             loadingOverlay.classList.add('visible');
@@ -1458,38 +1466,6 @@
         });
 
         /* ── Handle response from server ── */
-        async function handleResponse(response) {
-            const contentType = response.headers.get('content-type') || '';
-
-            if (contentType.includes('application/json')) {
-                const data = await response.json();
-
-                if (data.needs_password) {
-                    hideLoader();
-                    storedFileId = data.file_id;
-                    showPasswordModal();
-                    return;
-                }
-
-                if (data.error) {
-                    hideLoader();
-                    showToast(data.error);
-                    return;
-                }
-            }
-
-            // If it's HTML (the dashboard), replace the entire page
-            const html = await response.text();
-            if (html && html.trim().length > 0) {
-                document.open();
-                document.write(html);
-                document.close();
-            } else {
-                hideLoader();
-                showToast('Unexpected response from server.');
-            }
-        }
-
         /* ── Form Submit (AJAX) ── */
         uploadForm.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -1510,7 +1486,6 @@
                     body: formData
                 });
 
-                // Check if the response content type is JSON
                 const contentType = response.headers.get('content-type') || '';
                 if (contentType.includes('application/json')) {
                     const data = await response.json();
@@ -1527,6 +1502,16 @@
                         showToast(data.error);
                         return;
                     }
+
+                    hideLoader();
+                    showToast('Unexpected server response. Please try again.');
+                    return;
+                }
+
+                if (!response.ok) {
+                    hideLoader();
+                    showToast('Server error (' + response.status + '). Please try again.');
+                    return;
                 }
 
                 // HTML response — dashboard
@@ -1587,6 +1572,16 @@
                         modalError.classList.add('visible');
                         return;
                     }
+
+                    hideLoader();
+                    showToast('Unexpected server response. Please upload again.');
+                    return;
+                }
+
+                if (!response.ok) {
+                    hideLoader();
+                    showToast('Server error (' + response.status + '). Please try again.');
+                    return;
                 }
 
                 const html = await response.text();

@@ -229,11 +229,82 @@ def parse_pdf_table(pdf):
 
     if current_tx:
         final_transactions.append(current_tx)
-        
+
     if not final_transactions:
         return None
-        
+
+    # Sanity check: table extraction is unreliable if a "Date" cell merged
+    # multiple rows (multiple dates in one cell) or if most rows carry no
+    # monetary value at all. Signal the caller to fall back to text parsing.
+    degenerate_rows = 0
+    for tx in final_transactions:
+        dates_in_cell = len(re.findall(r"\d{1,2}[-/]\d{1,2}[-/]\d{2,4}", tx["Date"]))
+        if dates_in_cell > 1:
+            degenerate_rows += 1
+        elif tx["Debit"] == 0.0 and tx["Credit"] == 0.0 and tx["Balance"] == 0.0:
+            degenerate_rows += 1
+    if degenerate_rows > len(final_transactions) * 0.3:
+        return None
+
+    # Keep only the first date when a cell still holds a value date or noise
+    for tx in final_transactions:
+        m = re.match(r"\s*(\d{1,4}[-/\s.]\d{1,4}[-/\s.]\d{2,4})", tx["Date"])
+        if m:
+            tx["Date"] = m.group(1)
+
     return pd.DataFrame(final_transactions)
+
+# Statement furniture (repeated page headers/footers, summary blocks) that
+# must never be treated as transaction narration continuation lines.
+_BOILERPLATE_PATTERNS = [
+    r"page\s*no", r"page\s*\d", r"statement\s*of\s*account", r"account\s*branch", r"branch\s*:",
+    r"address\s*:", r"city\s*:", r"state\s*:", r"phone\s*no", r"mobile\s*:", r"email\s*:",
+    r"cust(omer)?\s*id", r"account\s*(no|number|name|holder|status)", r"a/c\s*(open|no)",
+    r"joint\s*holders?", r"rtgs/?neft\s*ifsc", r"micr", r"branch\s*code", r"product\s*code",
+    r"nomination", r"od\s*limit", r"currency\s*:", r"from\s*:", r"to\s*:", r"gstin?", r"www\.",
+    r"https?://", r"registered\s*office", r"contents\s*of\s*this", r"considered\s*correct",
+    r"closing\s*balance\s*includes", r"opening\s*balance", r"closing\s*bal", r"drcount",
+    r"statement\s*summary", r"generated\s*(on|by)", r"computer\s*generated", r"signature",
+    r"ear\s*marked", r"earmarked", r"uncleared", r"date\s*:", r"balance\s*:",
+    # Substring (not word-boundary) matches: bank PDFs often run words together
+    "page", "statement", "balance", "generated", "total",
+]
+_BOILERPLATE_RE = re.compile("|".join(_BOILERPLATE_PATTERNS), re.IGNORECASE)
+
+# Column header row of a transactions table (e.g. "Date Narration Chq./Ref.No. ...")
+_HEADER_ROW_RE = re.compile(
+    r"^\s*(date|txn\.?\s*date|transaction\s*date)\b.*"
+    r"(narration|description|particulars|details|remarks)\b",
+    re.IGNORECASE,
+)
+# "From : 01/06/2018 To : 10/10/2018 Statement of account" – end of page header block
+_PERIOD_ROW_RE = re.compile(r"^\s*from\b.{0,60}\bto\b", re.IGNORECASE | re.DOTALL)
+
+# Standalone date tokens (incl. month names) scrubbed out of narrations.
+# Separators are limited to - / . so the pattern cannot bleed across the
+# reference numbers and amounts that remain in the line.
+_DATE_TOKEN_RE = re.compile(
+    r"\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b"
+    r"|\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b"
+    r"|\b\d{1,2}[-/\s.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-/\s.]?\d{2,4}\b",
+    re.IGNORECASE,
+)
+
+
+def _page_lines(page):
+    """Yield the content lines of a page with the repeated header block removed."""
+    text = page.extract_text()
+    if not text:
+        return []
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+    # Drop the leading account-info block: everything up to and including the
+    # column header row or the statement period row, whichever comes first.
+    for i, line in enumerate(lines):
+        if _HEADER_ROW_RE.match(line) or _PERIOD_ROW_RE.match(line):
+            return lines[i + 1:]
+    return lines
+
 
 def parse_pdf_text(pdf):
     """Parse text-based PDF line by line as fallback."""
@@ -245,26 +316,18 @@ def parse_pdf_text(pdf):
     amt_pat = re.compile(r"\b\d{1,3}(?:,\d{3})*\.\d{2}\b")
     current_tx = None
     raw_lines = []
-    
+
     for page in pdf.pages:
-        text = page.extract_text()
-        if not text:
-            continue
-            
-        for line in text.split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-                
+        for line in _page_lines(page):
             date_match = date_pat.search(line)
             amounts = amt_pat.findall(line)
-            
+
             if date_match and amounts:
                 if current_tx:
                     raw_lines.append(current_tx)
-                    
+
                 date_str = date_match.group(1)
-                
+
                 # Extract details for each amount
                 amt_details = []
                 for a in amounts:
@@ -278,27 +341,36 @@ def parse_pdf_text(pdf):
                         elif "dr" in suffix:
                             dr_flag = True
                     amt_details.append((v, dr_flag, cr_flag))
-                    
-                # Clean description
+
+                # Clean description: strip amounts first (their internals look
+                # date-like), then standalone date tokens, then tidy up
                 desc = line
-                desc = desc.replace(date_str, "")
-                for a in amounts:
-                    desc = desc.replace(a, "")
-                desc = re.sub(r"\s+", " ", desc).strip()
-                
+                for a in set(amounts):
+                    desc = desc.replace(a, " ")
+                for tok in set(_DATE_TOKEN_RE.findall(desc)):
+                    desc = desc.replace(tok, " ")
+                desc = re.sub(r"[^0-9A-Za-z@./,&'()-]", " ", desc)
+                desc = re.sub(r"\s+", " ", desc).strip(" -|/:.")
+
                 current_tx = {
                     "Date": date_str,
                     "Description": desc,
                     "amt_details": amt_details
                 }
             else:
-                if current_tx:
-                    if not any(k in line.lower() for k in ("page", "statement", "date", "balance", "total")):
-                        current_tx["Description"] += " " + line
-                        
+                # Continuation of the previous narration, unless it is
+                # statement furniture or a numeric summary/total line.
+                if not current_tx:
+                    continue
+                if _BOILERPLATE_RE.search(line):
+                    continue
+                if len(amt_pat.findall(line)) >= 2 and len(re.findall(r"[A-Za-z]", line)) < 5:
+                    continue
+                current_tx["Description"] += " " + line
+
     if current_tx:
         raw_lines.append(current_tx)
-        
+
     if not raw_lines:
         return None
         

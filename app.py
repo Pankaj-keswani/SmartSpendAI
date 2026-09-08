@@ -40,15 +40,16 @@ except Exception:
 
 # ──────────────────────────────────────────────────────────
 # Bank Noise Words (used in cleaning)
+# NOTE: payment-mode words (upi/neft/rtgs/imps/transfer) are NOT noise –
+# the Transfer category matches on them.
 # ──────────────────────────────────────────────────────────
 BANK_NOISE = [
-    "upi", "neft", "rtgs", "imps", "transfer", "payment", "paid", "via",
-    "from", "to", "ref", "utr", "upiint", "upiintnet",
+    "payment", "paid", "via", "ref", "utr", "upiint", "upiintnet",
     "hdfc", "hdfcbank", "sbin", "icici", "icicibank", "idfc", "idfcbank",
     "axis", "axisbank", "yesb", "yesbank", "kotak", "kotakbank",
     "bob", "bankofbaroda", "pnb", "punjabnationalbank", "canara",
     "unionbank", "indianbank", "bankof", "bank", "ltd", "limited",
-    "pvtltd", "pvt", "private",
+    "pvtltd", "pvt", "private", "from", "to",
 ]
 
 # ──────────────────────────────────────────────────────────
@@ -58,14 +59,15 @@ CATEGORY_KEYWORDS = {
     "Shopping": [
         "flipkart", "amazon", "myntra", "ajio", "meesho", "nykaa",
         "tatacliq", "snapdeal", "shopclues", "firstcry", "limeroad",
-        "bewakoof", "urbanic", "shein", "zara", "hm", "uniqlo",
+        "bewakoof", "urbanic", "shein", "zara", "uniqlo",
         "decathlon", "croma", "reliance digital", "vijay sales",
         "shoppers stop", "lifestyle", "pantaloons", "westside",
-        "central", "max", "fbb", "dmart", "vishal mega mart",
+        "central", "fbb", "dmart", "vishal mega mart",
         "reliance trends", "pepperfry", "urbanladder", "ikea",
         "hometown", "fabindia", "sabyasachi", "tanishq", "kalyan",
         "malabar gold", "bluestone", "caratlane", "titan", "fastrack",
         "fossil", "boat", "noise", "crossword", "landmark", "archies",
+        "eaw",
     ],
     "Food": [
         "swiggy", "zomato", "blinkit", "dominos", "pizzahut", "kfc",
@@ -74,13 +76,13 @@ CATEGORY_KEYWORDS = {
         "subway", "starbucks", "ccd", "barista", "chaayos",
         "chai point", "haldiram", "bikanervala", "sagar ratna",
         "saravana bhavan", "restaurant", "food court", "cafe", "dhaba",
-        "tiffin", "canteen", "mess", "bakery", "eat", "dine",
+        "tiffin", "canteen", "bakery", "eat", "dine",
         "kitchen", "biryani", "pizza", "burger", "chicken", "thali",
     ],
     "Grocery": [
         "bigbasket", "bbnow", "jiomart", "zepto", "blinkit", "dunzo",
         "grofers", "swiggy instamart", "dmart", "reliance fresh",
-        "more supermarket", "spar", "star bazaar", "nature basket",
+        "more supermarket", "star bazaar", "nature basket",
         "fresh to home", "licious", "country delight", "milkbasket",
         "amul", "mother dairy", "kirana", "general store", "supermarket",
         "grocery", "vegetable", "fruit", "provision", "ration",
@@ -89,15 +91,15 @@ CATEGORY_KEYWORDS = {
         "apollo", "practo", "1mg", "netmeds", "medplus", "pharmeasy",
         "tata health", "manipal", "fortis", "max hospital", "aiims",
         "medanta", "narayana health", "hospital", "clinic", "diagnostic",
-        "pathology", "lab", "dental", "doctor", "physician", "chemist",
+        "pathology", "dental", "doctor", "physician", "chemist",
         "pharmacy", "medical", "health", "ayurvedic", "homeopathic",
     ],
     "Travel": [
         "uber", "ola", "rapido", "irctc", "makemytrip", "goibibo",
         "ixigo", "yatra", "cleartrip", "easemytrip", "air india",
         "indigo", "spicejet", "vistara", "akasa", "emirates", "hotel",
-        "oyo", "treebo", "fabhotel", "zostel", "metro", "bus",
-        "railway", "flight", "cab", "taxi", "auto", "rickshaw",
+        "oyo", "treebo", "fabhotel", "zostel", "metro", "railway",
+        "flight", "taxi", "rickshaw",
         "toll", "parking", "petrol pump",
     ],
     "Fuel": [
@@ -106,12 +108,12 @@ CATEGORY_KEYWORDS = {
         "petrol", "diesel", "cng", "ev charging",
     ],
     "Bills": [
-        "airtel", "jio", "vodafone", "vi", "bsnl", "mtnl",
+        "airtel", "jio", "vodafone", "bsnl", "mtnl",
         "tata play", "dish tv", "d2h", "sun direct", "electricity",
         "bescom", "tata power", "adani electricity", "water bill",
         "gas bill", "piped gas", "broadband", "act fibernet", "hathway",
         "you broadband", "recharge", "bill payment", "billdesk",
-        "payu", "utility", "postpaid", "prepaid", "dth",
+        "billpay", "payu", "utility", "postpaid", "prepaid", "dth",
     ],
     "Entertainment": [
         "netflix", "spotify", "amazon prime", "hotstar", "disney plus",
@@ -131,7 +133,9 @@ CATEGORY_KEYWORDS = {
         "emi", "loan", "insurance", "lic", "policybazaar",
         "bajaj finserv", "hdfc life", "sbi life", "icici lombard",
         "max life", "tata aia", "premium", "policy", "nach", "ecs",
-        "mandate", "auto debit",
+        "mandate", "auto debit", "achd", "credit card", "creditcard",
+        "cardbill", "sbicard", "billdk", "cbdt", "tax", "gst",
+        "indiabull",
     ],
     "Rent": [
         "rent", "house rent", "room rent", "flat rent", "pg rent",
@@ -144,15 +148,16 @@ CATEGORY_KEYWORDS = {
     "Investment": [
         "zerodha", "groww", "upstox", "angel one", "motilal oswal",
         "icici direct", "sip", "mutual fund", "mf purchase", "stock",
-        "share", "trading", "demat", "nps", "ppf", "fixed deposit",
+        "share", "demat", "nps", "ppf", "fixed deposit",
         "fd", "rd",
     ],
     "ATM": [
         "atm", "cash withdrawal", "atm-cw", "atm withdrawal",
-        "self withdrawal", "cash w/d",
+        "self withdrawal", "cash w/d", "nwd", "atw", "microatm",
+        "cashdep",
     ],
     "Transfer": [
-        "neft", "rtgs", "imps", "upi", "fund transfer",
+        "neft", "rtgs", "imps", "upi", "fund transfer", "tpt",
         "money transfer", "transfer to", "transfer from", "sent to",
         "received from", "credited by", "p2p",
     ],
@@ -165,6 +170,8 @@ _SHOPPING_PATTERNS = [
     re.compile(r"pos.*shop", re.IGNORECASE),
     re.compile(r"pos.*market", re.IGNORECASE),
     re.compile(r"pos.*retail", re.IGNORECASE),
+    re.compile(r"\bpos\w*\d{4,}", re.IGNORECASE),   # POS416021XXXXXX8060
+    re.compile(r"\bpos\w*deb", re.IGNORECASE),      # POSDEBIT (line-wrapped)
 ]
 
 # Bills regex pattern
@@ -182,21 +189,37 @@ def _clean_for_keyword_match(desc: str) -> str:
     return raw
 
 
+# Single-word keywords match at a word start ("emi4923306", "swiggy order",
+# "eatfit") but never inside a longer word ("great", "vijb", "ravindra").
+# Keywords of 6+ chars are specific enough to also match as a substring,
+# which catches bank-concatenated words like "BILLDKVODAFONEINDIAL".
+# Short brand acronyms that cannot appear inside ordinary words may too.
+_SUBSTRING_SAFE_KWS = {"jio", "dth", "d2h", "pvr", "ccd", "mpl", "1mg"}
+_KEYWORD_PREFIX_RES = {
+    category: [
+        (
+            re.compile(rf"\b{re.escape(kw)}"),
+            kw if len(kw) >= 6 or kw in _SUBSTRING_SAFE_KWS else None,
+        )
+        for kw in keywords if " " not in kw
+    ]
+    for category, keywords in CATEGORY_KEYWORDS.items()
+}
+
+
 def _layer1_keywords(desc: str, raw_desc: str) -> str:
     """Keyword-based categorisation. Returns category or 'Others'."""
     cleaned = _clean_for_keyword_match(desc)
-    # Also try a space-stripped version for single-word keywords
-    stripped = cleaned.replace(" ", "")
 
     for category, keywords in CATEGORY_KEYWORDS.items():
+        # Multi-word keywords: phrase match on the spaced text
         for kw in keywords:
-            if " " in kw:
-                # Multi-word keyword: match in the spaced version
-                if kw in cleaned:
-                    return category
-            else:
-                if kw in stripped:
-                    return category
+            if " " in kw and kw in cleaned:
+                return category
+        # Single-word keywords: word-boundary prefix match (+ substring for long ones)
+        for pattern, long_kw in _KEYWORD_PREFIX_RES[category]:
+            if pattern.search(cleaned) or (long_kw and long_kw in cleaned):
+                return category
 
     # Regex Shopping patterns (POS)
     for pat in _SHOPPING_PATTERNS:
@@ -330,7 +353,69 @@ _MERCHANT_NOISE_PATTERNS = [
     re.compile(r"@\S+"),                              # UPI handles
     re.compile(r"\b(PVT|LTD|LIMITED|PRIVATE)\b", re.IGNORECASE),
     re.compile(r"\b(VIA|PAYMENT|PAID|FROM|TO)\b", re.IGNORECASE),
+    re.compile(r"\b(PERSONAL|TPT|COMMENTS|NETBANK|THANE|MUMBAI)\b", re.IGNORECASE),
 ]
+
+
+_MERCHANT_NOISE_WORDS = {
+    "UPI", "NEFT", "IMPS", "RTGS", "CR", "DR", "POS", "OK", "PERSONAL",
+    "NETBANK", "MUM", "MB", "REV", "TPT", "CHQS", "IB", "FT", "NACH",
+    "MANDATE", "AUTODEBIT", "SELF", "CASH", "TXN", "REF", "UTR", "MHIN",
+    "THANE", "MUMBAI", "DELHI", "BENGALURU", "BANGALORE", "CHENNAI",
+    "HYDERABAD", "KOLKATA", "PUNE", "NOIDA", "GURUGRAM", "GURGAON",
+    "AHMEDABAD", "JAIPUR", "LUCKNOW", "INDIA",
+}
+_MERCHANT_BANK_WORDS = [
+    "hdfc", "sbin", "icici", "axis", "kotak", "idfc", "yesb", "bank",
+    "vijb", "kkbk", "ubin", "barb", "punb", "corp",
+]
+# Transaction-code prefixes stripped from the winning merchant word
+_MERCHANT_PREFIX_STRIPS = ("billdk", "ibbillpaydr", "ibbillpay", "billpaydr")
+# Winners that start with a transaction code are replaced by a readable label
+_MERCHANT_WEAK_PREFIXES = (
+    "ibbillpay", "billdk", "emi", "achd", "tpach", "microatm", "cashdep",
+    "nwd", "atw", "eaw", "pos", "ft", "cr", "dr",
+)
+
+
+def _merchant_label(desc: str):
+    """Readable label for narrations whose merchant is just a transaction code."""
+    u = str(desc).upper()
+    if "BILLPAY" in u or "BILLDK" in u:
+        return "Bill Payment"
+    if "EMI" in u or "ACHD" in u or "NACH" in u or "ECS" in u:
+        return "Loan EMI"
+    if "MICROATM" in u or "CASHDEP" in u or "NWD" in u or "ATW" in u or "ATM" in u:
+        return "ATM / Cash"
+    if re.search(r"\bPOS", u) or "EAW" in u:
+        return "Card Payment"
+    return None
+
+
+def _merchant_word_score(word: str) -> int:
+    """Score how much a token looks like a person/merchant name. -1 = noise."""
+    w = word.strip(" .,;:")
+    if not w:
+        return -1
+    upper = w.upper()
+    if upper in _MERCHANT_NOISE_WORDS:
+        return -1
+    if "@" in w:
+        return -1
+    letters = len(re.findall(r"[A-Za-z]", w))
+    digits = len(re.findall(r"\d", w))
+    if digits >= letters:          # reference numbers / codes
+        return -1
+    if digits >= 4 and len(w) >= 12:   # long mixed code (N155180555427618)
+        return -1
+    # Word ending in a 2+ digit group after 4+ letters is a branch/location code (BNAKMU02)
+    if letters >= 4 and re.search(r"[A-Za-z]{4,}\d{2,}$", w):
+        return -1
+    if any(b in w.lower() for b in _MERCHANT_BANK_WORDS):
+        return -1
+    if not re.search(r"[aeiouAEIOU]", w):   # consonant soup = code
+        return -1
+    return letters
 
 
 def extract_merchant(description: str) -> str:
@@ -339,50 +424,39 @@ def extract_merchant(description: str) -> str:
     if not text:
         return "Unknown"
 
-    # Split on common separators (-, /, |)
-    parts = re.split(r"[-/|]", text)
-
-    # For UPI transactions, the merchant name is usually the second token
-    upper = text.upper()
-    if any(tag in upper for tag in ("UPI", "IMPS", "NEFT", "RTGS")):
-        # Try to pick the part that looks like a merchant name
-        candidates = []
-        for part in parts:
-            cleaned = part.strip()
-            if not cleaned:
-                continue
-            # Skip parts that are just noise
-            is_noise = False
-            if re.match(r"^\d+$", cleaned):
-                is_noise = True
-            if cleaned.upper() in ("UPI", "NEFT", "IMPS", "RTGS", "CR", "DR"):
-                is_noise = True
-            if re.match(r"^[A-Z0-9]{12,}$", cleaned):
-                is_noise = True
-            if "@" in cleaned:
-                is_noise = True
-            # Skip bank names
-            if any(b in cleaned.lower() for b in ["hdfc", "sbin", "icici", "axis",
-                                                    "kotak", "idfc", "yesb", "bank"]):
-                is_noise = True
-            if not is_noise and len(cleaned) > 1:
-                candidates.append(cleaned)
-
-        if candidates:
-            # Return the first meaningful candidate, title-cased
-            return candidates[0].strip().title()
+    # Split on separators and spaces, then keep the most name-like token
+    tokens = re.split(r"[-/|,\s]+", text)
+    scored = [(t, _merchant_word_score(t)) for t in tokens]
+    best = max(scored, key=lambda x: x[1])
+    if best[1] >= 4:
+        word = best[0].strip(" .,;:")
+        low = word.lower()
+        for prefix in _MERCHANT_PREFIX_STRIPS:
+            if low.startswith(prefix) and len(word) - len(prefix) >= 5:
+                word = word[len(prefix):]
+                low = word.lower()
+                break
+        # Strip corporate suffixes baked into concatenated words
+        word = re.sub(r"(?:PVT|LTD|LIMITED|PRIVATE)+$", "", word, flags=re.IGNORECASE).strip(" -")
+        if len(word) >= 4 and not low.startswith(_MERCHANT_WEAK_PREFIXES):
+            return word.title()
+        return _merchant_label(text) or word.title()
 
     # Fallback: strip all noise patterns from the raw text
     result = text
     for pat in _MERCHANT_NOISE_PATTERNS:
         result = pat.sub(" ", result)
 
-    result = re.sub(r"\s+", " ", result).strip()
+    # Trim dangling digit groups (EMI4923306 -> EMI) and drop tiny leftovers
+    result = re.sub(r"(?<=[A-Za-z])\d+", " ", result)
+    result = re.sub(r"\b\w{0,2}\b", " ", result)
+    result = re.sub(r"\s+", " ", result).strip(" -|/:")
 
-    if len(result) < 2:
-        return "Unknown"
+    # Only accept if a real word (4+ letters) survived
+    if re.search(r"[A-Za-z]{4}", result):
+        return result.title()
 
-    return result.title()
+    return _merchant_label(text) or "Unknown"
 
 
 # ──────────────────────────────────────────────────────────
@@ -476,9 +550,10 @@ def generate_insights(df: pd.DataFrame) -> list:
         f"You made {count} transactions averaging \u20b9{avg:,.0f} each"
     )
 
-    # 4. Most frequent merchant
+    # 4. Most frequent merchant (placeholder names excluded)
     if "Merchant" in df.columns:
-        merchant_counts = df["Merchant"].value_counts()
+        named = df[df["Merchant"].astype(str).str.lower() != "unknown"]
+        merchant_counts = named["Merchant"].value_counts()
         if not merchant_counts.empty:
             top_merchant = merchant_counts.index[0]
             top_count = merchant_counts.iloc[0]
@@ -565,7 +640,8 @@ def _build_dashboard_data(df: pd.DataFrame) -> dict:
     # If all amounts are positive (common in parsed statements), treat total as debit
     total_debit = round(debits, 2)
     total_credit = round(credits, 2)
-    net_flow = round(total_debit - total_credit, 2)
+    # Net cash flow: income minus spending (negative = account shrank)
+    net_flow = round(total_credit - total_debit, 2)
     tx_count = len(df)
     avg_tx = round(df["Amount"].abs().mean(), 2) if tx_count > 0 else 0
 
@@ -578,9 +654,10 @@ def _build_dashboard_data(df: pd.DataFrame) -> dict:
     )
     top_category = cat_summary.iloc[0]["Category"] if not cat_summary.empty else "N/A"
 
-    # ── Top merchants (top 10 by absolute spend) ──
+    # ── Top merchants (top 10 by absolute spend; placeholders excluded) ──
+    named_df = df[df["Merchant"].astype(str).str.lower() != "unknown"]
     merchant_spend = (
-        df.groupby("Merchant")["Amount"]
+        named_df.groupby("Merchant")["Amount"]
         .agg(
             total=lambda x: round(x.abs().sum(), 2),
             count="count"
